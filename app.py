@@ -2,42 +2,83 @@ import os
 import sqlite3
 from flask import Flask, request, jsonify, session, send_from_directory
 
+# ─── PostgreSQL if DATABASE_URL is set, else SQLite locally ────────────────────
+DATABASE_URL = os.environ.get("DATABASE_URL")
+USE_PG = bool(DATABASE_URL)
+
+if USE_PG:
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+
 app = Flask(__name__, static_folder="static")
 app.secret_key = os.environ.get("SECRET_KEY", "lending-app-dev-key-change-in-prod")
 
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "admin123"
-# On Render/cloud: use /tmp (writable). Locally: use project folder.
-DB_PATH = os.environ.get("DB_PATH", os.path.join(os.path.dirname(__file__), "lending.db"))
+DB_PATH = os.path.join(os.path.dirname(__file__), "lending.db")  # local SQLite only
 
 
 # ─── Database ──────────────────────────────────────────────────────────────────
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+    if USE_PG:
+        conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+        return conn
+    else:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+
+def db_execute(conn, sql, params=()):
+    """Run a query — handles ? vs %s difference between SQLite and PostgreSQL."""
+    if USE_PG:
+        sql = sql.replace("?", "%s")
+    cur = conn.cursor()
+    cur.execute(sql, params)
+    return cur
 
 
 def init_db():
     conn = get_db()
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS cases (
-            id            INTEGER PRIMARY KEY AUTOINCREMENT,
-            name          TEXT    NOT NULL,
-            father_name   TEXT,
-            items         TEXT,
-            weight        REAL,
-            metal         TEXT,
-            money_lent    REAL,
-            interest_rate REAL,
-            loan_date     TEXT,
-            loan_time     TEXT,
-            notes         TEXT,
-            created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    conn.commit()
+    if USE_PG:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS cases (
+                id            SERIAL PRIMARY KEY,
+                name          TEXT    NOT NULL,
+                father_name   TEXT,
+                items         TEXT,
+                weight        REAL,
+                metal         TEXT,
+                money_lent    REAL,
+                interest_rate REAL,
+                loan_date     TEXT,
+                loan_time     TEXT,
+                notes         TEXT,
+                created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.commit()
+        cur.close()
+    else:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS cases (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                name          TEXT    NOT NULL,
+                father_name   TEXT,
+                items         TEXT,
+                weight        REAL,
+                metal         TEXT,
+                money_lent    REAL,
+                interest_rate REAL,
+                loan_date     TEXT,
+                loan_time     TEXT,
+                notes         TEXT,
+                created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.commit()
     conn.close()
 
 
@@ -74,28 +115,42 @@ def add_case():
     if not data.get("name", "").strip():
         return jsonify({"error": "Borrower name is required"}), 400
 
-    conn = get_db()
-    cur = conn.execute(
-        """
-        INSERT INTO cases
-            (name, father_name, items, weight, metal, money_lent, interest_rate, loan_date, loan_time, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            data.get("name", "").strip(),
-            data.get("father_name", "").strip() or None,
-            data.get("items", "").strip() or None,
-            data.get("weight") or None,
-            data.get("metal", "").strip() or None,
-            data.get("money_lent") or None,
-            data.get("interest_rate") or None,
-            data.get("loan_date", "").strip() or None,
-            data.get("loan_time", "").strip() or None,
-            data.get("notes", "").strip() or None,
-        ),
+    values = (
+        data.get("name", "").strip(),
+        data.get("father_name", "").strip() or None,
+        data.get("items", "").strip() or None,
+        data.get("weight") or None,
+        data.get("metal", "").strip() or None,
+        data.get("money_lent") or None,
+        data.get("interest_rate") or None,
+        data.get("loan_date", "").strip() or None,
+        data.get("loan_time", "").strip() or None,
+        data.get("notes", "").strip() or None,
     )
+
+    conn = get_db()
+
+    if USE_PG:
+        # PostgreSQL: use RETURNING to get the new ID in one query
+        cur = db_execute(conn,
+            """
+            INSERT INTO cases
+                (name, father_name, items, weight, metal, money_lent, interest_rate, loan_date, loan_time, notes)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            RETURNING id
+            """, values)
+        case_id = cur.fetchone()["id"]
+    else:
+        # SQLite: use lastrowid
+        cur = db_execute(conn,
+            """
+            INSERT INTO cases
+                (name, father_name, items, weight, metal, money_lent, interest_rate, loan_date, loan_time, notes)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, values)
+        case_id = cur.lastrowid
+
     conn.commit()
-    case_id = cur.lastrowid
     conn.close()
     return jsonify({"success": True, "id": case_id}), 201
 
@@ -105,10 +160,10 @@ def get_cases():
     if not session.get("logged_in"):
         return jsonify({"error": "Unauthorized"}), 401
 
-    q      = request.args.get("q", "").strip()
-    metal  = request.args.get("metal", "").strip()
-    d_from = request.args.get("from", "").strip()
-    d_to   = request.args.get("to", "").strip()
+    q       = request.args.get("q", "").strip()
+    metal   = request.args.get("metal", "").strip()
+    d_from  = request.args.get("from", "").strip()
+    d_to    = request.args.get("to", "").strip()
     amt_min = request.args.get("amt_min", "").strip()
     amt_max = request.args.get("amt_max", "").strip()
 
@@ -116,7 +171,8 @@ def get_cases():
     params = []
 
     if q:
-        sql += " AND (name LIKE ? OR father_name LIKE ? OR items LIKE ? OR CAST(id AS TEXT) = ?)"
+        sql += " AND (name ILIKE ? OR father_name ILIKE ? OR items ILIKE ? OR CAST(id AS TEXT) = ?)" if USE_PG else \
+               " AND (name LIKE ? OR father_name LIKE ? OR items LIKE ? OR CAST(id AS TEXT) = ?)"
         like = f"%{q}%"
         params.extend([like, like, like, q])
 
@@ -143,7 +199,8 @@ def get_cases():
     sql += " ORDER BY id DESC"
 
     conn = get_db()
-    rows = conn.execute(sql, params).fetchall()
+    cur = db_execute(conn, sql, params)
+    rows = cur.fetchall()
     conn.close()
     return jsonify([dict(r) for r in rows])
 
@@ -166,5 +223,6 @@ if __name__ == "__main__":
     print("  🏦  LoanTrack — Lending Management System")
     print("  👉  http://localhost:8080")
     print("  🔑  Login: admin / admin123")
+    print("  🗄️   DB: " + ("PostgreSQL" if USE_PG else "SQLite (local)"))
     print("=" * 52 + "\n")
     app.run(debug=True, port=8080)
