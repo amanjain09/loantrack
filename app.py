@@ -7,6 +7,7 @@ app.secret_key = os.environ.get("SECRET_KEY", "lending-app-dev-key-change-in-pro
 
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "admin123"
+# On Render/cloud: use /tmp (writable). Locally: use project folder.
 DB_PATH = os.environ.get("DB_PATH", os.path.join(os.path.dirname(__file__), "lending.db"))
 
 
@@ -147,6 +148,9 @@ def get_cases():
     return jsonify([dict(r) for r in rows])
 
 
+# ─── Init DB on startup (works with both gunicorn and python3 app.py) ──────────
+init_db()
+
 # ─── Serve SPA ─────────────────────────────────────────────────────────────────
 
 @app.route("/", defaults={"path": ""})
@@ -158,7 +162,6 @@ def serve(path):
 # ─── Run ───────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    init_db()
     print("\n" + "=" * 52)
     print("  🏦  LoanTrack — Lending Management System")
     print("  👉  http://localhost:8080")
