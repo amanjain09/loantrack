@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LoanTrack — Lending Management</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #F1F5F9; color: #0F172A; min-height: 100vh;
+    }
+    #root { min-height: 100vh; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .fade-in { animation: fadeIn 0.22s ease both; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner {
+      width: 18px; height: 18px; border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.35);
+      border-top-color: white;
+      animation: spin 0.65s linear infinite;
+      display: inline-block;
+    }
+
+    /* Table */
+    .tbl-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    thead th {
+      background: #F8FAFC; padding: 11px 14px;
+      text-align: left; font-weight: 600; color: #475569;
+      border-bottom: 1px solid #E2E8F0; white-space: nowrap;
+    }
+    tbody tr { transition: background 0.1s; }
+    tbody tr:hover { background: #F8FAFC; }
+    tbody td { padding: 11px 14px; border-bottom: 1px solid #F1F5F9; color: #334155; }
+    tbody tr:last-child td { border-bottom: none; }
+
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
+
+    input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; }
+    textarea { font-family: inherit; }
+    select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748B' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px !important; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+  const { useState, useEffect, useCallback } = React;
+
+  // ── Design tokens ──────────────────────────────────────────────────────────
+  const C = {
+    primary:      '#4338CA',
+    primaryHov:   '#3730A3',
+    primaryLight: '#EEF2FF',
+    bg:           '#F1F5F9',
+    card:         '#FFFFFF',
+    border:       '#E2E8F0',
+    text:         '#0F172A',
+    muted:        '#475569',
+    faint:        '#94A3B8',
+    success:      '#16A34A',
+    successLight: '#F0FDF4',
+    error:        '#DC2626',
+    errorLight:   '#FEF2F2',
+    cyan:         '#0891B2',
+  };
+
+  // ── API ────────────────────────────────────────────────────────────────────
+  const api = {
+    async req(url, opts = {}) {
+      const r = await fetch(url, {
+        headers: { 'Content-Type': 'application/json' },
+        ...opts,
+      });
+      const data = await r.json();
+      if (!r.ok && data.error) throw new Error(data.error);
+      return data;
+    },
+    get:  (url)        => api.req(url),
+    post: (url, body)  => api.req(url, { method: 'POST', body: JSON.stringify(body) }),
+  };
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  const today   = () => new Date().toISOString().split('T')[0];
+  const nowTime = () => new Date().toTimeString().slice(0, 5);
+  const fmt     = (v, pre = '') => (v != null && v !== '') ? `${pre}${Number(v).toLocaleString('en-IN')}` : '—';
+  const METALS  = ['Gold', 'Silver', 'Diamond', 'Platinum', 'Mixed', 'Other'];
+
+  // ── Common components ──────────────────────────────────────────────────────
+
+  const fieldBase = {
+    padding: '10px 14px', borderRadius: 8,
+    border: `1.5px solid ${C.border}`, fontSize: 14,
+    color: C.text, background: '#FAFAFA',
+    outline: 'none', width: '100%',
+    transition: 'border-color 0.15s',
+  };
+
+  function Field({ label, required, children }) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+        {label && (
+          <label style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, letterSpacing: '0.02em' }}>
+            {label}{required && <span style={{ color: C.error }}> *</span>}
+          </label>
+        )}
+        {children}
+      </div>
+    );
+  }
+
+  function Input({ label, required, ...props }) {
+    return (
+      <Field label={label} required={required}>
+        <input
+          {...props}
+          style={{ ...fieldBase, ...props.style }}
+          onFocus={e => (e.target.style.borderColor = C.primary)}
+          onBlur={e  => (e.target.style.borderColor = C.border)}
+        />
+      </Field>
+    );
+  }
+
+  function Select({ label, required, children, ...props }) {
+    return (
+      <Field label={label} required={required}>
+        <select
+          {...props}
+          style={{ ...fieldBase, cursor: 'pointer', ...props.style }}
+          onFocus={e => (e.target.style.borderColor = C.primary)}
+          onBlur={e  => (e.target.style.borderColor = C.border)}
+        >
+          {children}
+        </select>
+      </Field>
+    );
+  }
+
+  function Textarea({ label, ...props }) {
+    return (
+      <Field label={label}>
+        <textarea
+          {...props}
+          style={{ ...fieldBase, resize: 'vertical', ...props.style }}
+          onFocus={e => (e.target.style.borderColor = C.primary)}
+          onBlur={e  => (e.target.style.borderColor = C.border)}
+        />
+      </Field>
+    );
+  }
+
+  function Btn({ children, variant = 'primary', loading, style: s, ...props }) {
+    const vs = {
+      primary:   { background: C.primary,  color: 'white',   border: 'none' },
+      secondary: { background: 'white',    color: C.primary, border: `1.5px solid ${C.primary}` },
+      ghost:     { background: 'transparent', color: C.muted, border: 'none' },
+    };
+    return (
+      <button
+        {...props}
+        disabled={loading || props.disabled}
+        style={{
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+          padding: '10px 20px', borderRadius: 8, fontSize: 14, fontWeight: 600,
+          cursor: loading || props.disabled ? 'not-allowed' : 'pointer',
+          opacity: loading || props.disabled ? 0.65 : 1,
+          transition: 'opacity 0.15s, transform 0.1s',
+          ...vs[variant], ...s,
+        }}
+        onMouseEnter={e => { if (!loading && !props.disabled) e.currentTarget.style.opacity = '0.85'; }}
+        onMouseLeave={e => { if (!loading && !props.disabled) e.currentTarget.style.opacity = '1'; }}
+      >
+        {loading ? <span className="spinner" /> : children}
+      </button>
+    );
+  }
+
+  function Alert({ type = 'error', children }) {
+    const map = {
+      error:   { bg: C.errorLight,   color: C.error,   border: '#FECACA' },
+      success: { bg: C.successLight, color: C.success, border: '#BBF7D0' },
+      info:    { bg: '#EFF6FF',      color: '#1D4ED8',  border: '#BFDBFE' },
+    };
+    const s = map[type];
+    return (
+      <div style={{
+        padding: '11px 15px', borderRadius: 8, fontSize: 13.5, fontWeight: 500,
+        background: s.bg, color: s.color, border: `1px solid ${s.border}`,
+      }}>{children}</div>
+    );
+  }
+
+  function Navbar({ title, onBack, onLogout }) {
+    return (
+      <div style={{
+        background: C.primary, color: 'white', height: 56, padding: '0 20px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        boxShadow: '0 2px 10px rgba(67,56,202,0.3)',
+        position: 'sticky', top: 0, zIndex: 200,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {onBack && (
+            <button onClick={onBack} style={{
+              background: 'rgba(255,255,255,0.18)', border: 'none', color: 'white',
+              borderRadius: 7, padding: '5px 11px', cursor: 'pointer', fontSize: 17, lineHeight: 1,
+            }}>←</button>
+          )}
+          <span style={{ fontWeight: 800, fontSize: 16.5, letterSpacing: '-0.01em' }}>🏦 {title}</span>
+        </div>
+        {onLogout && (
+          <button onClick={onLogout} style={{
+            background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)',
+            color: 'white', borderRadius: 7, padding: '6px 14px', cursor: 'pointer',
+            fontSize: 13, fontWeight: 600,
+          }}>Logout</button>
+        )}
+      </div>
+    );
+  }
+
+  function SectionTitle({ children }) {
+    return (
+      <div style={{
+        fontSize: 12, fontWeight: 700, color: C.muted, letterSpacing: '0.08em',
+        textTransform: 'uppercase', marginBottom: 14,
+        paddingBottom: 10, borderBottom: `1px solid ${C.border}`,
+      }}>{children}</div>
+    );
+  }
+
+  // ── Pages ──────────────────────────────────────────────────────────────────
+
+  function LoginPage({ onLogin }) {
+    const [form, setForm]     = useState({ username: '', password: '' });
+    const [error, setError]   = useState('');
+    const [loading, setLoading] = useState(false);
+
+    const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
+
+    const submit = async e => {
+      e.preventDefault();
+      setLoading(true); setError('');
+      try {
+        const res = await api.post('/api/login', form);
+        if (res.success) onLogin();
+        else setError(res.message || 'Invalid credentials');
+      } catch (err) {
+        setError(err.message || 'Server error — is the backend running?');
+      } finally { setLoading(false); }
+    };
+
+    return (
+      <div style={{
+        minHeight: '100vh', background: `linear-gradient(135deg, #4338CA 0%, #0891B2 100%)`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+      }}>
+        <div className="fade-in" style={{
+          background: C.card, borderRadius: 20, padding: '44px 40px',
+          width: '100%', maxWidth: 400,
+          boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+        }}>
+          <div style={{ textAlign: 'center', marginBottom: 32 }}>
+            <div style={{ fontSize: 52, marginBottom: 10 }}>🏦</div>
+            <h1 style={{ fontSize: 26, fontWeight: 800, color: C.text, letterSpacing: '-0.02em' }}>
+              LoanTrack
+            </h1>
+            <p style={{ color: C.faint, fontSize: 13.5, marginTop: 5 }}>Lending Management System</p>
+          </div>
+
+          <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <Input
+              label="Username" required type="text" autoFocus
+              value={form.username} onChange={set('username')} placeholder="Enter username"
+            />
+            <Input
+              label="Password" required type="password"
+              value={form.password} onChange={set('password')} placeholder="Enter password"
+            />
+            {error && <Alert type="error">{error}</Alert>}
+            <Btn type="submit" loading={loading} style={{ width: '100%', padding: '12px', marginTop: 6, fontSize: 15 }}>
+              Sign In
+            </Btn>
+          </form>
+
+          <p style={{ textAlign: 'center', marginTop: 22, fontSize: 12, color: C.faint }}>
+            🔒 Administrator access only
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+
+  function HomePage({ onNavigate, onLogout }) {
+    const dateStr = new Date().toLocaleDateString('en-IN', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+    });
+
+    const cards = [
+      {
+        key: 'add', icon: '➕', bg: C.primary,
+        title: 'Add New Case',
+        desc: 'Register a new lending record with borrower details and pledged items.',
+      },
+      {
+        key: 'view', icon: '📋', bg: C.cyan,
+        title: 'View All Cases',
+        desc: 'Browse, search and filter all existing lending records from the database.',
+      },
+    ];
+
+    return (
+      <div style={{ minHeight: '100vh', background: C.bg }}>
+        <Navbar title="LoanTrack" onLogout={onLogout} />
+        <div className="fade-in" style={{ padding: '36px 24px', maxWidth: 720, margin: '0 auto' }}>
+          <p style={{ color: C.faint, fontSize: 13.5, marginBottom: 28 }}>{dateStr}</p>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(270px, 1fr))', gap: 20 }}>
+            {cards.map(card => (
+              <div
+                key={card.key}
+                onClick={() => onNavigate(card.key)}
+                style={{
+                  background: C.card, borderRadius: 18, padding: '28px 26px',
+                  cursor: 'pointer', border: `1px solid ${C.border}`,
+                  boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
+                  transition: 'transform 0.17s, box-shadow 0.17s',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.transform = 'translateY(-4px)';
+                  e.currentTarget.style.boxShadow = '0 10px 30px rgba(0,0,0,0.12)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,0.05)';
+                }}
+              >
+                <div style={{
+                  width: 54, height: 54, borderRadius: 14, background: card.bg,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 26, marginBottom: 18,
+                }}>{card.icon}</div>
+                <h2 style={{ fontSize: 19, fontWeight: 700, color: C.text, marginBottom: 8 }}>{card.title}</h2>
+                <p style={{ fontSize: 13.5, color: C.muted, lineHeight: 1.65 }}>{card.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+
+  function AddCasePage({ onBack }) {
+    const blank = () => ({
+      name: '', father_name: '', items: '',
+      weight: '', metal: 'Gold',
+      money_lent: '', interest_rate: '',
+      loan_date: today(), loan_time: nowTime(), notes: '',
+    });
+
+    const [form, setForm]     = useState(blank());
+    const [loading, setLoading] = useState(false);
+    const [success, setSuccess] = useState(null);
+    const [error, setError]   = useState('');
+
+    const set = k => e => { setForm(f => ({ ...f, [k]: e.target.value })); setError(''); };
+
+    const submit = async e => {
+      e.preventDefault();
+      if (!form.name.trim()) { setError('Borrower name is required.'); return; }
+      setLoading(true); setError('');
+      try {
+        const res = await api.post('/api/cases', form);
+        setSuccess(res.id);
+        setForm(blank());
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } catch (err) {
+        setError(err.message || 'Failed to save. Please try again.');
+      } finally { setLoading(false); }
+    };
+
+    const g2 = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 };
+    const g3 = { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 };
+
+    return (
+      <div style={{ minHeight: '100vh', background: C.bg }}>
+        <Navbar title="Add New Case" onBack={onBack} />
+        <div className="fade-in" style={{ padding: '28px 20px', maxWidth: 740, margin: '0 auto' }}>
+
+          {success && (
+            <div style={{ marginBottom: 16 }}>
+              <Alert type="success">
+                ✅ Case <strong>#{success}</strong> saved successfully!{' '}
+                <span
+                  style={{ textDecoration: 'underline', cursor: 'pointer' }}
+                  onClick={() => setSuccess(null)}
+                >Add another →</span>
+              </Alert>
+            </div>
+          )}
+
+          <div style={{
+            background: C.card, borderRadius: 16, padding: '28px 26px',
+            border: `1px solid ${C.border}`, boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
+          }}>
+            <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+
+              {/* Borrower */}
+              <div>
+                <SectionTitle>Borrower Details</SectionTitle>
+                <div style={g2}>
+                  <Input label="Borrower Name" required value={form.name} onChange={set('name')} placeholder="Full name" autoFocus />
+                  <Input label="Father's Name" value={form.father_name} onChange={set('father_name')} placeholder="Father's full name" />
+                </div>
+              </div>
+
+              {/* Pledged Item */}
+              <div>
+                <SectionTitle>Pledged Item</SectionTitle>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <Input label="Item Description" value={form.items} onChange={set('items')} placeholder="e.g. Gold necklace, 2 bangles, silver anklets" />
+                  <div style={g3}>
+                    <Input
+                      label="Weight (grams)" type="number" step="0.01" min="0"
+                      value={form.weight} onChange={set('weight')} placeholder="e.g. 10.5"
+                    />
+                    <div style={{ gridColumn: 'span 2' }}>
+                      <Select label="Metal Type" value={form.metal} onChange={set('metal')}>
+                        {METALS.map(m => <option key={m} value={m}>{m}</option>)}
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Loan Details */}
+              <div>
+                <SectionTitle>Loan Details</SectionTitle>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div style={g2}>
+                    <Input
+                      label="Amount Lent (₹)" type="number" step="0.01" min="0"
+                      value={form.money_lent} onChange={set('money_lent')} placeholder="e.g. 50000"
+                    />
+                    <Input
+                      label="Interest Rate (% / month)" type="number" step="0.01" min="0"
+                      value={form.interest_rate} onChange={set('interest_rate')} placeholder="e.g. 2"
+                    />
+                  </div>
+                  <div style={g2}>
+                    <Input label="Date" type="date" value={form.loan_date} onChange={set('loan_date')} />
+                    <Input label="Time" type="time" value={form.loan_time} onChange={set('loan_time')} />
+                  </div>
+                  <Textarea label="Notes (optional)" value={form.notes} onChange={set('notes')} rows={3} placeholder="Any additional notes..." />
+                </div>
+              </div>
+
+              {error && <Alert type="error">{error}</Alert>}
+
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', paddingTop: 4 }}>
+                <Btn type="button" variant="secondary" onClick={onBack}>Cancel</Btn>
+                <Btn type="submit" loading={loading}>💾 Save Case</Btn>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+
+  function ViewCasesPage({ onBack }) {
+    const [cases, setCases]     = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError]     = useState('');
+    const [filters, setFilters] = useState({ q: '', metal: '', from: '', to: '', amt_min: '', amt_max: '' });
+
+    const setF = k => e => setFilters(f => ({ ...f, [k]: e.target.value }));
+
+    const loadCases = useCallback(async (f) => {
+      setLoading(true); setError('');
+      try {
+        const p = new URLSearchParams();
+        if (f.q)       p.set('q',       f.q);
+        if (f.metal)   p.set('metal',   f.metal);
+        if (f.from)    p.set('from',    f.from);
+        if (f.to)      p.set('to',      f.to);
+        if (f.amt_min) p.set('amt_min', f.amt_min);
+        if (f.amt_max) p.set('amt_max', f.amt_max);
+        const data = await api.get('/api/cases?' + p.toString());
+        setCases(Array.isArray(data) ? data : []);
+      } catch (err) {
+        setError(err.message || 'Failed to load cases.');
+      } finally { setLoading(false); }
+    }, []);
+
+    useEffect(() => { loadCases(filters); }, []);
+
+    const clearFilters = () => {
+      const cleared = { q: '', metal: '', from: '', to: '', amt_min: '', amt_max: '' };
+      setFilters(cleared);
+      loadCases(cleared);
+    };
+
+    const g4 = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 };
+
+    return (
+      <div style={{ minHeight: '100vh', background: C.bg }}>
+        <Navbar title="All Cases" onBack={onBack} />
+        <div className="fade-in" style={{ padding: '28px 20px', maxWidth: 1200, margin: '0 auto' }}>
+
+          {/* Filters card */}
+          <div style={{
+            background: C.card, borderRadius: 14, padding: '20px 22px',
+            border: `1px solid ${C.border}`, boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+            marginBottom: 18,
+          }}>
+            <div style={{ fontWeight: 700, fontSize: 13, color: C.muted, marginBottom: 14, letterSpacing: '0.04em' }}>
+              🔍 SEARCH & FILTER
+            </div>
+            <div style={g4}>
+              <Input
+                label="Search" value={filters.q} onChange={setF('q')} placeholder="Name, father, items, ID…"
+                onKeyDown={e => e.key === 'Enter' && loadCases(filters)}
+              />
+              <Select label="Metal" value={filters.metal} onChange={setF('metal')}>
+                <option value="">All Metals</option>
+                {METALS.map(m => <option key={m} value={m}>{m}</option>)}
+              </Select>
+              <Input label="Date From" type="date" value={filters.from} onChange={setF('from')} />
+              <Input label="Date To"   type="date" value={filters.to}   onChange={setF('to')}   />
+              <Input label="Min Amount (₹)" type="number" value={filters.amt_min} onChange={setF('amt_min')} placeholder="e.g. 10000" />
+              <Input label="Max Amount (₹)" type="number" value={filters.amt_max} onChange={setF('amt_max')} placeholder="e.g. 100000" />
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 14 }}>
+              <Btn variant="secondary" onClick={clearFilters}>Clear</Btn>
+              <Btn onClick={() => loadCases(filters)}>Search</Btn>
+            </div>
+          </div>
+
+          {/* Results card */}
+          <div style={{
+            background: C.card, borderRadius: 14,
+            border: `1px solid ${C.border}`, boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+            overflow: 'hidden',
+          }}>
+            <div style={{
+              padding: '14px 20px', borderBottom: `1px solid ${C.border}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              background: '#FAFBFC',
+            }}>
+              <span style={{ fontWeight: 700, fontSize: 14, color: C.text }}>
+                {loading ? 'Loading…' : `${cases.length} record${cases.length !== 1 ? 's' : ''} found`}
+              </span>
+            </div>
+
+            {error && <div style={{ padding: 20 }}><Alert type="error">{error}</Alert></div>}
+
+            {loading ? (
+              <div style={{ padding: 60, textAlign: 'center', color: C.faint }}>
+                <div style={{ fontSize: 30, marginBottom: 12 }}>⏳</div>
+                Loading records…
+              </div>
+            ) : cases.length === 0 ? (
+              <div style={{ padding: 60, textAlign: 'center', color: C.faint }}>
+                <div style={{ fontSize: 36, marginBottom: 12 }}>📭</div>
+                No records found.
+              </div>
+            ) : (
+              <div className="tbl-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Borrower Name</th>
+                      <th>Father's Name</th>
+                      <th>Items</th>
+                      <th>Metal</th>
+                      <th>Weight</th>
+                      <th>Amount Lent</th>
+                      <th>Interest</th>
+                      <th>Date</th>
+                      <th>Time</th>
+                      <th>Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cases.map(c => (
+                      <tr key={c.id}>
+                        <td>
+                          <span style={{
+                            fontWeight: 700, color: C.primary, fontSize: 13,
+                          }}>#{c.id}</span>
+                        </td>
+                        <td style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{c.name}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>{c.father_name || '—'}</td>
+                        <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                            title={c.items}>{c.items || '—'}</td>
+                        <td>
+                          {c.metal ? (
+                            <span style={{
+                              padding: '2px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                              background: C.primaryLight, color: C.primary,
+                            }}>{c.metal}</span>
+                          ) : '—'}
+                        </td>
+                        <td>{c.weight != null ? `${c.weight}g` : '—'}</td>
+                        <td style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{fmt(c.money_lent, '₹')}</td>
+                        <td>{c.interest_rate != null ? `${c.interest_rate}%/mo` : '—'}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>{c.loan_date || '—'}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>{c.loan_time || '—'}</td>
+                        <td style={{ maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: C.muted }}
+                            title={c.notes}>{c.notes || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── App root ───────────────────────────────────────────────────────────────
+
+  function App() {
+    const [auth, setAuth] = useState(null); // null=checking
+    const [page, setPage] = useState('home');
+
+    useEffect(() => {
+      api.get('/api/check-auth')
+        .then(d => setAuth(d.authenticated))
+        .catch(() => setAuth(false));
+    }, []);
+
+    const logout = async () => {
+      await api.post('/api/logout', {}).catch(() => {});
+      setAuth(false);
+      setPage('home');
+    };
+
+    if (auth === null) {
+      return (
+        <div style={{
+          minHeight: '100vh', background: C.bg,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.faint,
+        }}>
+          Loading…
+        </div>
+      );
+    }
+
+    if (!auth) return <LoginPage onLogin={() => setAuth(true)} />;
+
+    if (page === 'add')  return <AddCasePage  onBack={() => setPage('home')} />;
+    if (page === 'view') return <ViewCasesPage onBack={() => setPage('home')} />;
+    return <HomePage onNavigate={setPage} onLogout={logout} />;
+  }
+
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
