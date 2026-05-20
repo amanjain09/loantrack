@@ -309,7 +309,7 @@
 
     const cards = [
       {
-        key: 'add', icon: '➕', bg: C.primary,
+        key: 'add', icon: '+', iconColor: '#fff', bg: C.primary,
         title: 'Add New Case',
         desc: 'Register a new lending record with borrower details and pledged items.',
       },
@@ -349,7 +349,7 @@
                 <div style={{
                   width: 54, height: 54, borderRadius: 14, background: card.bg,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 26, marginBottom: 18,
+                  fontSize: 26, marginBottom: 18, color: card.iconColor || 'inherit',
                 }}>{card.icon}</div>
                 <h2 style={{ fontSize: 19, fontWeight: 700, color: C.text, marginBottom: 8 }}>{card.title}</h2>
                 <p style={{ fontSize: 13.5, color: C.muted, lineHeight: 1.65 }}>{card.desc}</p>
