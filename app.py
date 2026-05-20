@@ -7,8 +7,8 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 USE_PG = bool(DATABASE_URL)
 
 if USE_PG:
-    import psycopg2
-    from psycopg2.extras import RealDictCursor
+    import psycopg
+    from psycopg.rows import dict_row
 
 app = Flask(__name__, static_folder="static")
 app.secret_key = os.environ.get("SECRET_KEY", "lending-app-dev-key-change-in-prod")
@@ -22,7 +22,7 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "lending.db")  # local SQLite 
 
 def get_db():
     if USE_PG:
-        conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+        conn = psycopg.connect(DATABASE_URL, row_factory=dict_row)
         return conn
     else:
         conn = sqlite3.connect(DB_PATH)
