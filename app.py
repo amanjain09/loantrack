@@ -13,6 +13,7 @@ if USE_PG:
 
 app = Flask(__name__, static_folder="static")
 app.secret_key = os.environ.get("SECRET_KEY", "lending-app-dev-key-change-in-prod")
+app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024   # 64 MB — for base64 file uploads
 
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "admin123"
@@ -56,62 +57,93 @@ def _calc_months(loan_date_str, end_date=None):
         return 1
 
 
+# ─── Lean column list for list endpoint (excludes heavy binary fields) ─────────
+_LIST_COLS = (
+    "id, name, father_name, address, mobile, items, weight, metal, "
+    "money_lent, interest_rate, loan_date, loan_time, notes, status, "
+    "closed_at, amount_received, probable_close_date, hard_deadline, created_at"
+)
+
+
 def init_db():
     conn = get_db()
     if USE_PG:
         cur = conn.cursor()
-        cur.execute("""
+        cur.execute(f"""
             CREATE TABLE IF NOT EXISTS cases (
-                id              SERIAL PRIMARY KEY,
-                name            TEXT    NOT NULL,
-                father_name     TEXT,
-                address         TEXT,
-                items           TEXT,
-                weight          REAL,
-                metal           TEXT,
-                money_lent      REAL,
-                interest_rate   REAL,
-                loan_date       TEXT,
-                loan_time       TEXT,
-                notes           TEXT,
-                status          TEXT DEFAULT 'open',
-                closed_at       TEXT,
-                amount_received REAL,
-                created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                id                  SERIAL PRIMARY KEY,
+                name                TEXT    NOT NULL,
+                father_name         TEXT,
+                address             TEXT,
+                mobile              TEXT,
+                items               TEXT,
+                weight              REAL,
+                metal               TEXT,
+                money_lent          REAL,
+                interest_rate       REAL,
+                loan_date           TEXT,
+                loan_time           TEXT,
+                notes               TEXT,
+                status              TEXT DEFAULT 'open',
+                closed_at           TEXT,
+                amount_received     REAL,
+                probable_close_date TEXT,
+                hard_deadline       TEXT,
+                address_proof       TEXT,
+                lending_video       TEXT,
+                closing_video       TEXT,
+                created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
         for col_def in [
             "ADD COLUMN IF NOT EXISTS address TEXT",
+            "ADD COLUMN IF NOT EXISTS mobile TEXT",
             "ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'open'",
             "ADD COLUMN IF NOT EXISTS closed_at TEXT",
             "ADD COLUMN IF NOT EXISTS amount_received REAL",
+            "ADD COLUMN IF NOT EXISTS probable_close_date TEXT",
+            "ADD COLUMN IF NOT EXISTS hard_deadline TEXT",
+            "ADD COLUMN IF NOT EXISTS address_proof TEXT",
+            "ADD COLUMN IF NOT EXISTS lending_video TEXT",
+            "ADD COLUMN IF NOT EXISTS closing_video TEXT",
         ]:
             cur.execute(f"ALTER TABLE cases {col_def}")
         cur.execute("UPDATE cases SET status = 'open' WHERE status IS NULL")
         conn.commit()
         cur.close()
     else:
-        conn.execute("""
+        conn.execute(f"""
             CREATE TABLE IF NOT EXISTS cases (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                name            TEXT    NOT NULL,
-                father_name     TEXT,
-                address         TEXT,
-                items           TEXT,
-                weight          REAL,
-                metal           TEXT,
-                money_lent      REAL,
-                interest_rate   REAL,
-                loan_date       TEXT,
-                loan_time       TEXT,
-                notes           TEXT,
-                status          TEXT DEFAULT 'open',
-                closed_at       TEXT,
-                amount_received REAL,
-                created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                name                TEXT    NOT NULL,
+                father_name         TEXT,
+                address             TEXT,
+                mobile              TEXT,
+                items               TEXT,
+                weight              REAL,
+                metal               TEXT,
+                money_lent          REAL,
+                interest_rate       REAL,
+                loan_date           TEXT,
+                loan_time           TEXT,
+                notes               TEXT,
+                status              TEXT DEFAULT 'open',
+                closed_at           TEXT,
+                amount_received     REAL,
+                probable_close_date TEXT,
+                hard_deadline       TEXT,
+                address_proof       TEXT,
+                lending_video       TEXT,
+                closing_video       TEXT,
+                created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        for col_def in ["address TEXT", "status TEXT DEFAULT 'open'", "closed_at TEXT", "amount_received REAL"]:
+        for col_def in [
+            "address TEXT", "mobile TEXT", "status TEXT DEFAULT 'open'",
+            "closed_at TEXT", "amount_received REAL",
+            "probable_close_date TEXT", "hard_deadline TEXT",
+            "address_proof TEXT", "lending_video TEXT", "closing_video TEXT",
+        ]:
             try:
                 conn.execute(f"ALTER TABLE cases ADD COLUMN {col_def}")
             except Exception:
@@ -158,6 +190,7 @@ def add_case():
         data.get("name", "").strip(),
         data.get("father_name", "").strip() or None,
         data.get("address", "").strip() or None,
+        data.get("mobile", "").strip() or None,
         data.get("items", "").strip() or None,
         data.get("weight") or None,
         data.get("metal", "").strip() or None,
@@ -166,6 +199,10 @@ def add_case():
         data.get("loan_date", "").strip() or None,
         data.get("loan_time", "").strip() or None,
         data.get("notes", "").strip() or None,
+        data.get("probable_close_date", "").strip() or None,
+        data.get("hard_deadline", "").strip() or None,
+        data.get("address_proof") or None,
+        data.get("lending_video") or None,
     )
 
     conn = get_db()
@@ -173,9 +210,10 @@ def add_case():
         cur = db_execute(conn,
             """
             INSERT INTO cases
-                (name, father_name, address, items, weight, metal,
-                 money_lent, interest_rate, loan_date, loan_time, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (name, father_name, address, mobile, items, weight, metal,
+                 money_lent, interest_rate, loan_date, loan_time, notes,
+                 probable_close_date, hard_deadline, address_proof, lending_video)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             RETURNING id
             """, values)
         case_id = cur.fetchone()["id"]
@@ -183,9 +221,10 @@ def add_case():
         cur = db_execute(conn,
             """
             INSERT INTO cases
-                (name, father_name, address, items, weight, metal,
-                 money_lent, interest_rate, loan_date, loan_time, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (name, father_name, address, mobile, items, weight, metal,
+                 money_lent, interest_rate, loan_date, loan_time, notes,
+                 probable_close_date, hard_deadline, address_proof, lending_video)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, values)
         case_id = cur.lastrowid
 
@@ -208,16 +247,17 @@ def get_cases():
     amt_exact = request.args.get("amt_exact", "").strip()
     status    = request.args.get("status",    "").strip()
 
-    sql    = "SELECT * FROM cases WHERE 1=1"
+    # Exclude heavy base64 columns from list view
+    sql    = f"SELECT {_LIST_COLS} FROM cases WHERE 1=1"
     params = []
 
     if q:
         if USE_PG:
-            sql += " AND (name ILIKE ? OR father_name ILIKE ? OR items ILIKE ? OR address ILIKE ? OR CAST(id AS TEXT) = ?)"
+            sql += " AND (name ILIKE ? OR father_name ILIKE ? OR items ILIKE ? OR address ILIKE ? OR mobile ILIKE ? OR CAST(id AS TEXT) = ?)"
         else:
-            sql += " AND (name LIKE ? OR father_name LIKE ? OR items LIKE ? OR address LIKE ? OR CAST(id AS TEXT) = ?)"
+            sql += " AND (name LIKE ? OR father_name LIKE ? OR items LIKE ? OR address LIKE ? OR mobile LIKE ? OR CAST(id AS TEXT) = ?)"
         like = f"%{q}%"
-        params.extend([like, like, like, like, q])
+        params.extend([like, like, like, like, like, q])
 
     if metal:
         sql += " AND LOWER(metal) = LOWER(?)"
@@ -275,12 +315,13 @@ def close_case(case_id):
 
     data            = request.get_json() or {}
     amount_received = data.get("amount_received")
+    closing_video   = data.get("closing_video") or None
     closed_at       = datetime.now().strftime("%Y-%m-%d %H:%M")
 
     conn = get_db()
     cur  = db_execute(conn,
-        "UPDATE cases SET status = 'closed', closed_at = ?, amount_received = ? WHERE id = ?",
-        (closed_at, amount_received, case_id))
+        "UPDATE cases SET status = 'closed', closed_at = ?, amount_received = ?, closing_video = ? WHERE id = ?",
+        (closed_at, amount_received, closing_video, case_id))
 
     if cur.rowcount == 0:
         conn.close()
@@ -320,7 +361,8 @@ def get_dashboard():
     today = date_type.today()
 
     conn      = get_db()
-    cur       = db_execute(conn, "SELECT * FROM cases")
+    # Fetch only the columns needed for analytics (skip base64 blobs)
+    cur       = db_execute(conn, f"SELECT {_LIST_COLS} FROM cases")
     all_cases = [dict(r) for r in cur.fetchall()]
     conn.close()
 
@@ -331,7 +373,6 @@ def get_dashboard():
     # ── Money totals ──────────────────────────────────────────────────────────
     total_principal = sum(c.get("money_lent") or 0 for c in all_cases)
 
-    # Interest generated on closed cases (calculated, not just received)
     total_interest_generated = 0.0
     for c in closed_cases:
         if c.get("money_lent") and c.get("interest_rate") and c.get("loan_date"):
@@ -345,7 +386,6 @@ def get_dashboard():
     total_amount_received = sum(c.get("amount_received") or 0 for c in closed_cases)
     bad_debt_amount       = sum(c.get("money_lent") or 0 for c in bad_debt_cases)
 
-    # Outstanding receivable = principal + accrued interest on every open case
     outstanding_receivable = 0.0
     projected_interest     = 0.0
     for c in open_cases:
@@ -361,7 +401,6 @@ def get_dashboard():
                 pass
 
     # ── Rates & averages ──────────────────────────────────────────────────────
-    # Recovery rate: % of closed cases where amount_received >= 99% of total due
     recovered_fully = 0
     for c in closed_cases:
         if c.get("amount_received") and c.get("money_lent") and c.get("interest_rate") and c.get("loan_date"):
@@ -375,7 +414,6 @@ def get_dashboard():
                 pass
     recovery_rate = round(recovered_fully / len(closed_cases) * 100, 1) if closed_cases else 0
 
-    # Avg duration: closed cases only (days)
     durations = []
     for c in closed_cases:
         if c.get("loan_date") and c.get("closed_at"):
@@ -387,7 +425,6 @@ def get_dashboard():
                 pass
     avg_duration_days = round(sum(durations) / len(durations), 1) if durations else 0
 
-    # Avg interest per closed case
     case_interests = []
     for c in closed_cases:
         if c.get("money_lent") and c.get("interest_rate") and c.get("loan_date"):
@@ -399,14 +436,11 @@ def get_dashboard():
                 pass
     avg_interest_per_case = round(sum(case_interests) / len(case_interests), 2) if case_interests else 0
 
-    # Effective yield = interest generated / principal of closed cases × 100
     principal_closed = sum(c.get("money_lent") or 0 for c in closed_cases)
     effective_yield  = round(total_interest_generated / principal_closed * 100, 2) if principal_closed else 0
 
-    # Avg loan amount across all cases
     avg_loan_amount = round(total_principal / len(all_cases), 2) if all_cases else 0
 
-    # Collection efficiency = amount_received / (amount_received + outstanding) × 100
     denom_coll = total_amount_received + outstanding_receivable
     collection_efficiency = round(total_amount_received / denom_coll * 100, 1) if denom_coll else 0
 
@@ -429,7 +463,7 @@ def get_dashboard():
 
     # ── Metal breakdown ───────────────────────────────────────────────────────
     metal_map  = {}
-    wt_open    = {}   # weight currently held (open cases)
+    wt_open    = {}
     for c in all_cases:
         metal = c.get("metal") or "Unknown"
         if metal not in metal_map:
@@ -534,6 +568,16 @@ def get_dashboard():
         except Exception:
             pass
 
+    # ── Overdue cases (hard_deadline passed, still open) ─────────────────────
+    overdue_count = 0
+    for c in open_cases:
+        if c.get("hard_deadline"):
+            try:
+                if date_type.fromisoformat(str(c["hard_deadline"])[:10]) < today:
+                    overdue_count += 1
+            except Exception:
+                pass
+
     return jsonify({
         # Counts
         "total_cases":       len(all_cases),
@@ -541,6 +585,7 @@ def get_dashboard():
         "closed_cases":      len(closed_cases),
         "bad_debt_cases":    len(bad_debt_cases),
         "repeat_borrowers":  repeat_borrowers,
+        "overdue_cases":     overdue_count,
 
         # Money
         "total_principal":           round(total_principal, 2),

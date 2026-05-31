@@ -8,75 +8,207 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <!-- Google Translate -->
+  <script type="text/javascript">
+    function googleTranslateElementInit() {
+      new google.translate.TranslateElement({
+        pageLanguage: 'en',
+        includedLanguages: 'en,hi,bn,mr,te,ta,gu,ur,kn,or,ml,pa,as,mai,sat,ks',
+        layout: google.translate.TranslateElement.InlineLayout.SIMPLE,
+        autoDisplay: false
+      }, 'gt_widget');
+    }
+  </script>
+  <script src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
   <style>
+    /* Google Translate widget — blend into navbar */
+    #gt_widget { display: inline-flex; align-items: center; }
+    #gt_widget .goog-te-gadget { margin: 0; font-size: 0; }
+    #gt_widget .goog-te-gadget-simple {
+      background: rgba(255,255,255,0.15) !important;
+      border: 1px solid rgba(255,255,255,0.25) !important;
+      border-radius: 8px !important;
+      padding: 5px 10px !important;
+      font-size: 13px !important;
+    }
+    #gt_widget .goog-te-gadget-simple span,
+    #gt_widget .goog-te-gadget-simple a { color: #fff !important; }
+    #gt_widget .goog-te-gadget-simple .goog-te-menu-value span { color: #fff !important; }
+    .goog-te-banner-frame { display: none !important; }
+    body { top: 0px !important; }
+  </style>
+    /* ── CSS variables — toggled by data-theme on <html> ─────────────────── */
+    :root {
+      --body-bg:      #F1F5F9;
+      --body-color:   #0F172A;
+      --tbl-th-bg:    #F8FAFC;
+      --tbl-th-color: #475569;
+      --tbl-th-bdr:   #E2E8F0;
+      --tbl-hover:    #EEF2FF;
+      --tbl-td-color: #334155;
+      --tbl-td-bdr:   #F1F5F9;
+      --scrollbar:    #CBD5E1;
+      --sel-arrow:    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748B' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    }
+    [data-theme="dark"] {
+      --body-bg:      #0F172A;
+      --body-color:   #F1F5F9;
+      --tbl-th-bg:    #1E293B;
+      --tbl-th-color: #94A3B8;
+      --tbl-th-bdr:   #334155;
+      --tbl-hover:    #1E1B4B;
+      --tbl-td-color: #CBD5E1;
+      --tbl-td-bdr:   #334155;
+      --scrollbar:    #475569;
+      --sel-arrow:    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394A3B8' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #F1F5F9; color: #0F172A; min-height: 100vh;
+      background: var(--body-bg); color: var(--body-color); min-height: 100vh;
+      transition: background-color 0.3s ease, color 0.2s ease;
     }
     #root { min-height: 100vh; }
+
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(10px); }
       to   { opacity: 1; transform: translateY(0); }
     }
     .fade-in { animation: fadeIn 0.22s ease both; }
+
     @keyframes spin { to { transform: rotate(360deg); } }
     .spinner {
       width: 18px; height: 18px; border-radius: 50%;
-      border: 2px solid rgba(255,255,255,0.35); border-top-color: white;
+      border: 2px solid rgba(255,255,255,0.35); border-top-color: #fff;
       animation: spin 0.65s linear infinite; display: inline-block;
     }
+
+    /* Table */
     .tbl-wrap { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
     thead th {
-      background: #F8FAFC; padding: 11px 14px;
-      text-align: left; font-weight: 600; color: #475569;
-      border-bottom: 1px solid #E2E8F0; white-space: nowrap;
+      background: var(--tbl-th-bg); padding: 11px 14px;
+      text-align: left; font-weight: 600; color: var(--tbl-th-color);
+      border-bottom: 1px solid var(--tbl-th-bdr); white-space: nowrap;
+      transition: background-color 0.3s, color 0.2s;
     }
-    tbody tr { transition: background 0.1s; cursor: pointer; }
-    tbody tr:hover { background: #EEF2FF; }
-    tbody td { padding: 11px 14px; border-bottom: 1px solid #F1F5F9; color: #334155; }
+    tbody tr { transition: background-color 0.15s; cursor: pointer; }
+    tbody tr:hover { background: var(--tbl-hover); }
+    tbody td {
+      padding: 11px 14px; color: var(--tbl-td-color);
+      border-bottom: 1px solid var(--tbl-td-bdr);
+      transition: color 0.2s, border-color 0.3s;
+    }
     tbody tr:last-child td { border-bottom: none; }
+
     ::-webkit-scrollbar { width: 5px; height: 5px; }
-    ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
-    input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; }
+    ::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+
+    input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0.6; }
     textarea { font-family: inherit; }
-    select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748B' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px !important; }
+    select {
+      appearance: none;
+      background-image: var(--sel-arrow);
+      background-repeat: no-repeat; background-position: right 12px center;
+      padding-right: 32px !important;
+    }
   </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-  const { useState, useEffect, useCallback, useRef } = React;
+  const { useState, useEffect, useCallback, useRef, createContext, useContext } = React;
 
-  // ── Design tokens ──────────────────────────────────────────────────────────
-  const C = {
-    primary:      '#4338CA',
-    primaryHov:   '#3730A3',
-    primaryLight: '#EEF2FF',
-    bg:           '#F1F5F9',
-    card:         '#FFFFFF',
-    border:       '#E2E8F0',
-    text:         '#0F172A',
-    muted:        '#475569',
-    faint:        '#94A3B8',
-    success:      '#16A34A',
-    successLight: '#F0FDF4',
-    error:        '#DC2626',
-    errorLight:   '#FEF2F2',
-    cyan:         '#0891B2',
-    green:        '#059669',
-    greenLight:   '#ECFDF5',
-    amber:        '#D97706',
-    amberLight:   '#FFFBEB',
-    violet:       '#7C3AED',
-    violetLight:  '#F5F3FF',
+  // ── Theme context ──────────────────────────────────────────────────────────
+  const ThemeCtx = createContext(null);
+  const useTheme = () => useContext(ThemeCtx);
+
+  // ── Light color tokens ─────────────────────────────────────────────────────
+  const LIGHT = {
+    primary:       '#4338CA', primaryHov:    '#3730A3', primaryLight:  '#EEF2FF',
+    bg:            '#F1F5F9', card:          '#FFFFFF',  cardAlt:       '#FAFBFC',
+    border:        '#E2E8F0', text:          '#0F172A',  muted:         '#475569',
+    faint:         '#94A3B8',
+    success:       '#16A34A', successLight:  '#F0FDF4',  successBorder: '#BBF7D0',
+    error:         '#DC2626', errorLight:    '#FEF2F2',  errorBorder:   '#FECACA',
+    cyan:          '#0891B2',
+    green:         '#059669', greenLight:    '#ECFDF5',
+    amber:         '#D97706', amberLight:    '#FFFBEB',  amberBorder:   '#FDE68A',
+    violet:        '#7C3AED', violetLight:   '#F5F3FF',
+    inputBg:       '#FAFAFA', inputBorder:   '#E2E8F0',
+    navBg:         '#4338CA', navShadow:     '0 2px 12px rgba(67,56,202,0.3)',
+    loginGrad:     'linear-gradient(135deg,#4338CA 0%,#0891B2 100%)',
+    modalOverlay:  'rgba(0,0,0,0.5)',
+    infoBg:        '#EFF6FF', infoColor:     '#1D4ED8', infoBorder: '#BFDBFE',
+  };
+
+  // ── Dark color tokens ──────────────────────────────────────────────────────
+  const DARK = {
+    primary:       '#818CF8', primaryHov:    '#6366F1', primaryLight:  '#1E1B4B',
+    bg:            '#0F172A', card:          '#1E293B',  cardAlt:       '#162032',
+    border:        '#334155', text:          '#F1F5F9',  muted:         '#94A3B8',
+    faint:         '#64748B',
+    success:       '#4ADE80', successLight:  '#052E16',  successBorder: '#14532D',
+    error:         '#F87171', errorLight:    '#450A0A',  errorBorder:   '#7F1D1D',
+    cyan:          '#38BDF8',
+    green:         '#34D399', greenLight:    '#022C22',
+    amber:         '#FBBF24', amberLight:    '#431407',  amberBorder:   '#92400E',
+    violet:        '#A78BFA', violetLight:   '#2E1065',
+    inputBg:       '#0F172A', inputBorder:   '#334155',
+    navBg:         '#1E293B', navShadow:     '0 2px 12px rgba(0,0,0,0.5)',
+    loginGrad:     'linear-gradient(135deg,#1E1B4B 0%,#0C4A6E 100%)',
+    modalOverlay:  'rgba(0,0,0,0.7)',
+    infoBg:        '#0F172A', infoColor:     '#93C5FD', infoBorder: '#1E3A5F',
   };
 
   const CHART_PALETTE = [
-    '#4338CA','#0891B2','#059669','#D97706','#DC2626',
-    '#7C3AED','#DB2777','#0284C7','#16A34A','#CA8A04',
+    '#818CF8','#38BDF8','#4ADE80','#FBBF24','#F87171',
+    '#A78BFA','#F472B6','#34D399','#60A5FA','#FACC15',
   ];
+
+  // ── Global helpers ─────────────────────────────────────────────────────────
+  const todayStr  = () => new Date().toISOString().split('T')[0];
+  const nowTime   = () => new Date().toTimeString().slice(0, 5);
+  const fmt       = (v, pre = '') => (v != null && v !== '') ? `${pre}${Number(v).toLocaleString('en-IN')}` : '—';
+  const METALS    = ['Gold', 'Silver', 'Diamond', 'Platinum', 'Mixed', 'Other'];
+  const fmtCompact = v => {
+    if (v == null || v === '') return '—';
+    const n = parseFloat(v);
+    if (n >= 10000000) return '₹' + (n / 10000000).toFixed(2) + ' Cr';
+    if (n >= 100000)   return '₹' + (n / 100000).toFixed(2) + ' L';
+    if (n >= 1000)     return '₹' + (n / 1000).toFixed(1) + 'K';
+    return '₹' + n.toLocaleString('en-IN');
+  };
+  const fmtAxis = v => {
+    if (v >= 10000000) return '₹' + (v / 10000000).toFixed(1) + 'Cr';
+    if (v >= 100000)   return '₹' + (v / 100000).toFixed(1) + 'L';
+    if (v >= 1000)     return '₹' + (v / 1000).toFixed(0) + 'K';
+    return '₹' + v;
+  };
+  const fmtMonth = ym => {
+    const [y, m] = ym.split('-');
+    return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(m)-1] + " '" + y.slice(2);
+  };
+
+  // ── Interest helpers ───────────────────────────────────────────────────────
+  function calcMonths(loanDateStr, endDateStr) {
+    if (!loanDateStr) return 1;
+    const loan = new Date(loanDateStr + 'T00:00:00');
+    const end  = endDateStr ? new Date(endDateStr.slice(0,10) + 'T00:00:00') : new Date();
+    end.setHours(0,0,0,0); loan.setHours(0,0,0,0);
+    let m = (end.getFullYear() - loan.getFullYear()) * 12 + (end.getMonth() - loan.getMonth());
+    if (end.getDate() > loan.getDate()) m++;
+    return Math.max(1, m);
+  }
+  function calcInterest(c, endDateStr) {
+    if (!c.loan_date || !c.money_lent || !c.interest_rate) return null;
+    const months = calcMonths(c.loan_date, endDateStr);
+    const p = parseFloat(c.money_lent), r = parseFloat(c.interest_rate);
+    const interest = p * (r / 100) * months;
+    return { months, principal: p, interest, total: p + interest };
+  }
 
   // ── API ────────────────────────────────────────────────────────────────────
   const api = {
@@ -86,167 +218,160 @@
       if (!r.ok && data.error) throw new Error(data.error);
       return data;
     },
-    get:  url        => api.req(url),
+    get:  url         => api.req(url),
     post: (url, body) => api.req(url, { method: 'POST', body: JSON.stringify(body) }),
   };
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
-  const today   = () => new Date().toISOString().split('T')[0];
-  const nowTime = () => new Date().toTimeString().slice(0, 5);
-  const fmt     = (v, pre = '') => (v != null && v !== '') ? `${pre}${Number(v).toLocaleString('en-IN')}` : '—';
-  const METALS  = ['Gold', 'Silver', 'Diamond', 'Platinum', 'Mixed', 'Other'];
+  // ── File → base64 helper ───────────────────────────────────────────────────
+  const fileToBase64 = file => new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload  = e => resolve(e.target.result);
+    r.onerror = () => reject(new Error('File read failed'));
+    r.readAsDataURL(file);
+  });
 
-  // Compact display: ₹1.25 L  /  ₹2.50 Cr
-  const fmtCompact = v => {
-    if (v == null || v === '') return '—';
-    const n = parseFloat(v);
-    if (n >= 10000000) return '₹' + (n / 10000000).toFixed(2) + ' Cr';
-    if (n >= 100000)   return '₹' + (n / 100000).toFixed(2) + ' L';
-    if (n >= 1000)     return '₹' + (n / 1000).toFixed(1) + 'K';
-    return '₹' + n.toLocaleString('en-IN');
-  };
-
-  // Chart y-axis tick formatter
-  const fmtAxis = v => {
-    if (v >= 10000000) return '₹' + (v / 10000000).toFixed(1) + 'Cr';
-    if (v >= 100000)   return '₹' + (v / 100000).toFixed(1) + 'L';
-    if (v >= 1000)     return '₹' + (v / 1000).toFixed(0) + 'K';
-    return '₹' + v;
-  };
-
-  // "2025-05" → "May '25"
-  const fmtMonth = ym => {
-    const [y, m] = ym.split('-');
-    const names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    return `${names[parseInt(m) - 1]} '${y.slice(2)}`;
-  };
-
-  // ── Interest calculation ───────────────────────────────────────────────────
-  function calcMonths(loanDateStr, endDateStr) {
-    if (!loanDateStr) return 1;
-    const loan = new Date(loanDateStr + 'T00:00:00');
-    const end  = endDateStr ? new Date(endDateStr.slice(0, 10) + 'T00:00:00') : new Date();
-    end.setHours(0, 0, 0, 0); loan.setHours(0, 0, 0, 0);
-    let months = (end.getFullYear() - loan.getFullYear()) * 12 + (end.getMonth() - loan.getMonth());
-    if (end.getDate() > loan.getDate()) months += 1;
-    return Math.max(1, months);
-  }
-
-  function calcInterest(c, endDateStr) {
-    if (!c.loan_date || !c.money_lent || !c.interest_rate) return null;
-    const months    = calcMonths(c.loan_date, endDateStr);
-    const principal = parseFloat(c.money_lent);
-    const rate      = parseFloat(c.interest_rate);
-    const interest  = principal * (rate / 100) * months;
-    return { months, principal, interest, total: principal + interest };
-  }
-
-  // ── Status helpers ─────────────────────────────────────────────────────────
-  const STATUS_LABEL = { open: 'Open', closed: 'Closed', bad_debt: 'Bad Debt' };
-  const STATUS_BG    = { open: C.successLight, closed: C.errorLight,   bad_debt: C.amberLight };
-  const STATUS_COLOR = { open: C.success,      closed: C.error,        bad_debt: C.amber };
-
-  function StatusBadge({ status, style: s }) {
-    const st = status || 'open';
+  // ── FileUpload component ───────────────────────────────────────────────────
+  function FileUpload({ label, accept, value, onChange, maxMB }) {
+    const { C } = useTheme();
+    const ref = useRef(null);
+    const isVideo = (accept || '').includes('video');
+    const limit   = maxMB || (isVideo ? 25 : 5);
+    const handleChange = async e => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      if (file.size > limit * 1024 * 1024) {
+        alert(`File too large. Maximum ${limit} MB allowed.`);
+        e.target.value = '';
+        return;
+      }
+      try { onChange(await fileToBase64(file)); } catch { alert('Could not read file.'); }
+    };
     return (
-      <span style={{
-        padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
-        textTransform: 'uppercase', letterSpacing: '0.05em',
-        background: STATUS_BG[st]    || C.successLight,
-        color:      STATUS_COLOR[st] || C.success,
-        ...s,
-      }}>{STATUS_LABEL[st] || st}</span>
+      <Field label={label}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {value && (
+            <div style={{ position: 'relative', borderRadius: 10, overflow: 'hidden', border: `1px solid ${C.border}` }}>
+              {isVideo
+                ? <video src={value} controls style={{ width: '100%', maxHeight: 220, background: '#000', display: 'block' }} />
+                : <img src={value} alt="proof" style={{ width: '100%', maxHeight: 220, objectFit: 'cover', display: 'block' }} />}
+              <button type="button" onClick={() => { onChange(''); if(ref.current) ref.current.value=''; }} style={{
+                position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.65)', color: '#fff',
+                border: 'none', borderRadius: 6, padding: '3px 9px', cursor: 'pointer', fontSize: 12,
+              }}>✕ Remove</button>
+            </div>
+          )}
+          <input ref={ref} type="file" accept={accept} onChange={handleChange} style={{ display: 'none' }} />
+          <Btn type="button" variant="secondary" onClick={() => ref.current?.click()} style={{ alignSelf: 'flex-start' }}>
+            {isVideo ? '🎥' : '📷'} {value ? 'Change' : 'Upload'} {isVideo ? 'Video' : 'Image'}
+          </Btn>
+          <div style={{ fontSize: 11, color: C.faint }}>Max {limit} MB · {isVideo ? 'MP4, MOV, WebM' : 'JPG, PNG, WebP'}</div>
+        </div>
+      </Field>
     );
   }
 
-  // ── Chart components (Chart.js wrappers) ───────────────────────────────────
-  function ChartCanvas({ type, data, options, height }) {
-    const ref  = useRef(null);
-    const inst = useRef(null);
+  // ── Status badge ───────────────────────────────────────────────────────────
+  function StatusBadge({ status, style: s }) {
+    const { C } = useTheme();
+    const cfg = {
+      open:     { bg: C.successLight, color: C.success, label: 'Open' },
+      closed:   { bg: C.errorLight,   color: C.error,   label: 'Closed' },
+      bad_debt: { bg: C.amberLight,   color: C.amber,   label: 'Bad Debt' },
+    };
+    const { bg, color, label } = cfg[status] || cfg.open;
+    return (
+      <span style={{
+        padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+        textTransform: 'uppercase', letterSpacing: '0.05em', background: bg, color, ...s,
+      }}>{label}</span>
+    );
+  }
+
+  // ── Chart components ───────────────────────────────────────────────────────
+  function ChartCanvas({ type, data, options, height, themeKey }) {
+    const ref = useRef(null), inst = useRef(null);
     useEffect(() => {
       if (!ref.current || !window.Chart) return;
       if (inst.current) { inst.current.destroy(); inst.current = null; }
       inst.current = new window.Chart(ref.current, { type, data, options: options || {} });
       return () => { if (inst.current) { inst.current.destroy(); inst.current = null; } };
-    }, [JSON.stringify(data)]);
+    }, [JSON.stringify(data), themeKey]);
     return <div style={{ height: height || 240, position: 'relative' }}><canvas ref={ref} /></div>;
   }
 
-  const defaultScales = (yFmt) => ({
-    y: {
-      beginAtZero: true,
-      grid: { color: '#F1F5F9' },
-      ticks: { font: { size: 11 }, callback: yFmt || undefined },
-    },
-    x: { grid: { display: false }, ticks: { font: { size: 11 } } },
-  });
-
-  const defaultLegend = (show = true) => ({
-    display: show, position: 'bottom',
-    labels: { boxWidth: 12, padding: 12, font: { size: 11 } },
-  });
-
   function BarChart({ labels, datasets, height, yFmt, horizontal }) {
+    const { C, dark } = useTheme();
+    const scaleOpts = {
+      y: {
+        beginAtZero: true,
+        grid: { color: C.border },
+        ticks: { color: C.muted, font: { size: 11 }, callback: yFmt || undefined },
+        border: { color: C.border },
+      },
+      x: {
+        grid: { display: false },
+        ticks: { color: C.muted, font: { size: 11 } },
+        border: { color: C.border },
+      },
+    };
     return (
-      <ChartCanvas
-        type="bar"
-        height={height}
+      <ChartCanvas type="bar" height={height} themeKey={dark ? 'dark' : 'light'}
         data={{ labels, datasets }}
         options={{
           responsive: true, maintainAspectRatio: false,
           indexAxis: horizontal ? 'y' : 'x',
           plugins: {
-            legend: defaultLegend(datasets.length > 1),
-            tooltip: { callbacks: { label: ctx => `  ${ctx.dataset.label || ''}: ${yFmt ? yFmt(ctx.raw) : ctx.raw}` } },
+            legend: { display: datasets.length > 1, position: 'bottom', labels: { color: C.muted, boxWidth: 12, padding: 12, font: { size: 11 } } },
+            tooltip: { backgroundColor: C.card, titleColor: C.text, bodyColor: C.muted, borderColor: C.border, borderWidth: 1,
+              callbacks: { label: ctx => `  ${ctx.dataset.label || ''}: ${yFmt ? yFmt(ctx.raw) : ctx.raw}` } },
           },
-          scales: defaultScales(yFmt),
+          scales: scaleOpts,
         }}
       />
     );
   }
 
   function LineChart({ labels, datasets, height, yFmt }) {
+    const { C, dark } = useTheme();
     return (
-      <ChartCanvas
-        type="line"
-        height={height}
+      <ChartCanvas type="line" height={height} themeKey={dark ? 'dark' : 'light'}
         data={{ labels, datasets }}
         options={{
           responsive: true, maintainAspectRatio: false,
           plugins: {
-            legend: defaultLegend(true),
-            tooltip: { callbacks: { label: ctx => `  ${ctx.dataset.label || ''}: ${yFmt ? yFmt(ctx.raw) : ctx.raw}` } },
+            legend: { position: 'bottom', labels: { color: C.muted, boxWidth: 12, padding: 12, font: { size: 11 } } },
+            tooltip: { backgroundColor: C.card, titleColor: C.text, bodyColor: C.muted, borderColor: C.border, borderWidth: 1,
+              callbacks: { label: ctx => `  ${ctx.dataset.label || ''}: ${yFmt ? yFmt(ctx.raw) : ctx.raw}` } },
           },
-          elements: { line: { tension: 0.4 }, point: { radius: 3 } },
-          scales: defaultScales(yFmt),
+          elements: { line: { tension: 0.4 }, point: { radius: 3, hoverRadius: 5 } },
+          scales: {
+            y: { beginAtZero: true, grid: { color: C.border }, ticks: { color: C.muted, font: { size: 11 }, callback: yFmt || undefined }, border: { color: C.border } },
+            x: { grid: { display: false }, ticks: { color: C.muted, font: { size: 11 } }, border: { color: C.border } },
+          },
         }}
       />
     );
   }
 
   function DoughnutChart({ labels, data, colors, height }) {
+    const { C, dark } = useTheme();
     return (
-      <ChartCanvas
-        type="doughnut"
-        height={height}
-        data={{ labels, datasets: [{ data, backgroundColor: colors, borderWidth: 2, borderColor: '#fff' }] }}
+      <ChartCanvas type="doughnut" height={height} themeKey={dark ? 'dark' : 'light'}
+        data={{ labels, datasets: [{ data, backgroundColor: colors, borderWidth: 2, borderColor: C.card }] }}
         options={{
           responsive: true, maintainAspectRatio: false, cutout: '62%',
-          plugins: { legend: defaultLegend(true) },
+          plugins: {
+            legend: { position: 'bottom', labels: { color: C.muted, boxWidth: 12, padding: 12, font: { size: 11 } } },
+            tooltip: { backgroundColor: C.card, titleColor: C.text, bodyColor: C.muted, borderColor: C.border, borderWidth: 1 },
+          },
         }}
       />
     );
   }
 
-  // ── Common UI components ───────────────────────────────────────────────────
-  const fieldBase = {
-    padding: '10px 14px', borderRadius: 8,
-    border: `1.5px solid ${C.border}`, fontSize: 14,
-    color: C.text, background: '#FAFAFA',
-    outline: 'none', width: '100%', transition: 'border-color 0.15s',
-  };
-
+  // ── UI primitives ──────────────────────────────────────────────────────────
   function Field({ label, required, children }) {
+    const { C } = useTheme();
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
         {label && (
@@ -260,21 +385,34 @@
   }
 
   function Input({ label, required, ...props }) {
+    const { C } = useTheme();
+    const base = {
+      padding: '10px 14px', borderRadius: 8, border: `1.5px solid ${C.inputBorder}`,
+      fontSize: 14, color: C.text, background: C.inputBg,
+      outline: 'none', width: '100%', transition: 'border-color 0.15s, background-color 0.3s',
+    };
     return (
       <Field label={label} required={required}>
-        <input {...props} style={{ ...fieldBase, ...props.style }}
+        <input {...props} style={{ ...base, ...props.style }}
           onFocus={e => (e.target.style.borderColor = C.primary)}
-          onBlur={e  => (e.target.style.borderColor = C.border)} />
+          onBlur={e  => (e.target.style.borderColor = C.inputBorder)} />
       </Field>
     );
   }
 
   function Select({ label, required, children, ...props }) {
+    const { C } = useTheme();
+    const base = {
+      padding: '10px 14px', borderRadius: 8, border: `1.5px solid ${C.inputBorder}`,
+      fontSize: 14, color: C.text, background: C.inputBg,
+      outline: 'none', width: '100%', cursor: 'pointer',
+      transition: 'border-color 0.15s, background-color 0.3s',
+    };
     return (
       <Field label={label} required={required}>
-        <select {...props} style={{ ...fieldBase, cursor: 'pointer', ...props.style }}
+        <select {...props} style={{ ...base, ...props.style }}
           onFocus={e => (e.target.style.borderColor = C.primary)}
-          onBlur={e  => (e.target.style.borderColor = C.border)}>
+          onBlur={e  => (e.target.style.borderColor = C.inputBorder)}>
           {children}
         </select>
       </Field>
@@ -282,22 +420,30 @@
   }
 
   function Textarea({ label, ...props }) {
+    const { C } = useTheme();
+    const base = {
+      padding: '10px 14px', borderRadius: 8, border: `1.5px solid ${C.inputBorder}`,
+      fontSize: 14, color: C.text, background: C.inputBg,
+      outline: 'none', width: '100%', resize: 'vertical',
+      transition: 'border-color 0.15s, background-color 0.3s',
+    };
     return (
       <Field label={label}>
-        <textarea {...props} style={{ ...fieldBase, resize: 'vertical', ...props.style }}
+        <textarea {...props} style={{ ...base, ...props.style }}
           onFocus={e => (e.target.style.borderColor = C.primary)}
-          onBlur={e  => (e.target.style.borderColor = C.border)} />
+          onBlur={e  => (e.target.style.borderColor = C.inputBorder)} />
       </Field>
     );
   }
 
   function Btn({ children, variant = 'primary', loading, style: s, ...props }) {
+    const { C } = useTheme();
     const vs = {
-      primary:   { background: C.primary, color: 'white', border: 'none' },
-      secondary: { background: 'white', color: C.primary, border: `1.5px solid ${C.primary}` },
+      primary:   { background: C.primary, color: '#fff', border: 'none' },
+      secondary: { background: 'transparent', color: C.primary, border: `1.5px solid ${C.primary}` },
       ghost:     { background: 'transparent', color: C.muted, border: 'none' },
-      danger:    { background: C.error, color: 'white', border: 'none' },
-      warning:   { background: C.amber, color: 'white', border: 'none' },
+      danger:    { background: C.error, color: '#fff', border: 'none' },
+      warning:   { background: C.amber, color: '#fff', border: 'none' },
     };
     return (
       <button {...props} disabled={loading || props.disabled}
@@ -305,10 +451,10 @@
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
           padding: '10px 20px', borderRadius: 8, fontSize: 14, fontWeight: 600,
           cursor: loading || props.disabled ? 'not-allowed' : 'pointer',
-          opacity: loading || props.disabled ? 0.65 : 1,
+          opacity: loading || props.disabled ? 0.6 : 1,
           transition: 'opacity 0.15s', ...vs[variant], ...s,
         }}
-        onMouseEnter={e => { if (!loading && !props.disabled) e.currentTarget.style.opacity = '0.85'; }}
+        onMouseEnter={e => { if (!loading && !props.disabled) e.currentTarget.style.opacity = '0.82'; }}
         onMouseLeave={e => { if (!loading && !props.disabled) e.currentTarget.style.opacity = '1'; }}>
         {loading ? <span className="spinner" /> : children}
       </button>
@@ -316,11 +462,12 @@
   }
 
   function Alert({ type = 'error', children }) {
+    const { C } = useTheme();
     const map = {
-      error:   { bg: C.errorLight,   color: C.error,   border: '#FECACA' },
-      success: { bg: C.successLight, color: C.success, border: '#BBF7D0' },
-      info:    { bg: '#EFF6FF',      color: '#1D4ED8',  border: '#BFDBFE' },
-      warning: { bg: C.amberLight,   color: C.amber,   border: '#FDE68A' },
+      error:   { bg: C.errorLight,   color: C.error,   border: C.errorBorder },
+      success: { bg: C.successLight, color: C.success, border: C.successBorder },
+      info:    { bg: C.infoBg,       color: C.infoColor, border: C.infoBorder },
+      warning: { bg: C.amberLight,   color: C.amber,   border: C.amberBorder },
     };
     const s = map[type] || map.error;
     return (
@@ -332,45 +479,66 @@
   }
 
   function Navbar({ title, onBack, onLogout }) {
+    const { C, dark, toggle } = useTheme();
     return (
       <div style={{
-        background: C.primary, color: 'white', height: 56, padding: '0 20px',
+        background: C.navBg, color: '#fff', height: 56, padding: '0 20px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        boxShadow: '0 2px 10px rgba(67,56,202,0.3)', position: 'sticky', top: 0, zIndex: 200,
+        boxShadow: C.navShadow, position: 'sticky', top: 0, zIndex: 200,
+        transition: 'background-color 0.3s, box-shadow 0.3s',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {onBack && (
             <button onClick={onBack} style={{
-              background: 'rgba(255,255,255,0.18)', border: 'none', color: 'white',
+              background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff',
               borderRadius: 7, padding: '5px 11px', cursor: 'pointer', fontSize: 17, lineHeight: 1,
             }}>←</button>
           )}
           <span style={{ fontWeight: 800, fontSize: 16.5, letterSpacing: '-0.01em' }}>🏦 {title}</span>
         </div>
-        {onLogout && (
-          <button onClick={onLogout} style={{
-            background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)',
-            color: 'white', borderRadius: 7, padding: '6px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600,
-          }}>Logout</button>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* 🌐 Google Translate */}
+          <div id="gt_widget" />
+          {/* 🌙 Dark / Light toggle */}
+          <button
+            onClick={toggle}
+            title={dark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            style={{
+              background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.2)',
+              color: '#fff', borderRadius: 8, padding: '5px 12px', cursor: 'pointer',
+              fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
+            }}>
+            {dark ? '☀️ Light' : '🌙 Dark'}
+          </button>
+          {onLogout && (
+            <button onClick={onLogout} style={{
+              background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)',
+              color: '#fff', borderRadius: 7, padding: '6px 14px', cursor: 'pointer',
+              fontSize: 13, fontWeight: 600,
+            }}>Logout</button>
+          )}
+        </div>
       </div>
     );
   }
 
   function SectionTitle({ children }) {
+    const { C } = useTheme();
     return (
       <div style={{
         fontSize: 12, fontWeight: 700, color: C.muted, letterSpacing: '0.08em',
-        textTransform: 'uppercase', marginBottom: 14, paddingBottom: 10, borderBottom: `1px solid ${C.border}`,
+        textTransform: 'uppercase', marginBottom: 14,
+        paddingBottom: 10, borderBottom: `1px solid ${C.border}`,
       }}>{children}</div>
     );
   }
 
   function InfoRow({ label, value }) {
+    const { C } = useTheme();
     return (
       <div style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-        gap: 16, padding: '7px 0', borderBottom: `1px solid ${C.border}`,
+        gap: 16, padding: '8px 0', borderBottom: `1px solid ${C.border}`,
       }}>
         <span style={{ color: C.muted, fontSize: 13, flexShrink: 0 }}>{label}</span>
         <span style={{ color: C.text, fontWeight: 500, fontSize: 13, textAlign: 'right' }}>{value || '—'}</span>
@@ -378,25 +546,25 @@
     );
   }
 
-  // Dashboard building blocks
+  // ── Dashboard building blocks ──────────────────────────────────────────────
   function KpiCard({ label, value, sub, icon, color }) {
+    const { C } = useTheme();
     return (
       <div style={{
         background: C.card, borderRadius: 14, padding: '18px 20px',
-        border: `1px solid ${C.border}`, boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+        border: `1px solid ${C.border}`, boxShadow: `0 2px 8px rgba(0,0,0,${C.bg === DARK.bg ? '0.3' : '0.04'})`,
+        transition: 'background-color 0.3s, border-color 0.3s',
       }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
-              {label}
-            </div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>{label}</div>
             <div style={{ fontSize: 22, fontWeight: 800, color: C.text, wordBreak: 'break-word' }}>{value}</div>
             {sub && <div style={{ fontSize: 11, color: C.faint, marginTop: 4 }}>{sub}</div>}
           </div>
           {icon && (
             <div style={{
               width: 42, height: 42, borderRadius: 10, flexShrink: 0,
-              background: (color || C.primary) + '1A',
+              background: (color || C.primary) + '22',
               display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
             }}>{icon}</div>
           )}
@@ -406,10 +574,13 @@
   }
 
   function ChartBox({ title, children, style: s }) {
+    const { C } = useTheme();
     return (
       <div style={{
         background: C.card, borderRadius: 14, padding: '20px 22px',
-        border: `1px solid ${C.border}`, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', ...s,
+        border: `1px solid ${C.border}`,
+        boxShadow: `0 2px 8px rgba(0,0,0,${C.bg === DARK.bg ? '0.3' : '0.04'})`,
+        transition: 'background-color 0.3s, border-color 0.3s', ...s,
       }}>
         <div style={{ fontSize: 13.5, fontWeight: 700, color: C.text, marginBottom: 18 }}>{title}</div>
         {children}
@@ -418,10 +589,13 @@
   }
 
   function StatChip({ label, value, sub, color }) {
+    const { C } = useTheme();
     return (
       <div style={{
-        background: color ? color + '12' : C.bg, borderRadius: 12, padding: '13px 16px',
-        border: `1px solid ${color ? color + '30' : C.border}`,
+        background: color ? color + '14' : C.card,
+        borderRadius: 12, padding: '13px 16px',
+        border: `1px solid ${color ? color + '35' : C.border}`,
+        transition: 'background-color 0.3s, border-color 0.3s',
       }}>
         <div style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>{label}</div>
         <div style={{ fontSize: 20, fontWeight: 800, color: color || C.text }}>{value}</div>
@@ -430,9 +604,25 @@
     );
   }
 
+  // ── Card wrapper (reused for form pages) ──────────────────────────────────
+  function Card({ children, style: s }) {
+    const { C } = useTheme();
+    return (
+      <div style={{
+        background: C.card, borderRadius: 16, padding: '28px 26px',
+        border: `1px solid ${C.border}`,
+        boxShadow: `0 2px 10px rgba(0,0,0,${C.bg === DARK.bg ? '0.3' : '0.05'})`,
+        transition: 'background-color 0.3s, border-color 0.3s', ...s,
+      }}>
+        {children}
+      </div>
+    );
+  }
+
   // ── Pages ──────────────────────────────────────────────────────────────────
 
   function LoginPage({ onLogin }) {
+    const { C } = useTheme();
     const [form, setForm]       = useState({ username: '', password: '' });
     const [error, setError]     = useState('');
     const [loading, setLoading] = useState(false);
@@ -447,12 +637,15 @@
     };
     return (
       <div style={{
-        minHeight: '100vh', background: 'linear-gradient(135deg, #4338CA 0%, #0891B2 100%)',
+        minHeight: '100vh', background: C.loginGrad,
         display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+        transition: 'background 0.4s',
       }}>
         <div className="fade-in" style={{
           background: C.card, borderRadius: 20, padding: '44px 40px',
-          width: '100%', maxWidth: 400, boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+          width: '100%', maxWidth: 400,
+          boxShadow: '0 24px 64px rgba(0,0,0,0.35)',
+          transition: 'background-color 0.3s',
         }}>
           <div style={{ textAlign: 'center', marginBottom: 32 }}>
             <div style={{ fontSize: 52, marginBottom: 10 }}>🏦</div>
@@ -474,15 +667,16 @@
   // ──────────────────────────────────────────────────────────────────────────
 
   function HomePage({ onNavigate, onLogout }) {
+    const { C, dark, toggle } = useTheme();
     const dateStr = new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
     const cards = [
-      { key: 'add',       icon: '+',  iconColor: '#fff', bg: C.primary, title: 'Add New Case',         desc: 'Register a new lending record. Date & time are auto-filled.' },
-      { key: 'view',      icon: '📋', bg: C.cyan,        title: 'View All Cases',       desc: 'Browse, search and filter all records. Click any row to view details or close.' },
-      { key: 'existing',  icon: '📂', bg: C.green,       title: 'Add Existing Case',    desc: 'Digitise an old record. Enter the original loan date & time manually.' },
-      { key: 'dashboard', icon: '📊', bg: C.violet,      title: 'Dashboard & Analytics',desc: 'Charts, KPIs, trends, bad debts, top borrowers and full portfolio overview.' },
+      { key: 'add',       icon: '+',  iconColor: '#fff', bg: C.primary, title: 'Add New Case',          desc: 'Register a new lending record. Date & time are auto-filled.' },
+      { key: 'view',      icon: '📋', bg: C.cyan,        title: 'View All Cases',        desc: 'Browse, search and filter all records. Click any row for details or to close.' },
+      { key: 'existing',  icon: '📂', bg: C.green,       title: 'Add Existing Case',     desc: 'Digitise an old record. Enter the original loan date & time manually.' },
+      { key: 'dashboard', icon: '📊', bg: C.violet,      title: 'Dashboard & Analytics', desc: 'Charts, KPIs, trends, bad debts, top borrowers and full portfolio overview.' },
     ];
     return (
-      <div style={{ minHeight: '100vh', background: C.bg }}>
+      <div style={{ minHeight: '100vh', background: C.bg, transition: 'background-color 0.3s' }}>
         <Navbar title="LoanTrack" onLogout={onLogout} />
         <div className="fade-in" style={{ padding: '36px 24px', maxWidth: 1000, margin: '0 auto' }}>
           <p style={{ color: C.faint, fontSize: 13.5, marginBottom: 28 }}>{dateStr}</p>
@@ -491,10 +685,11 @@
               <div key={card.key} onClick={() => onNavigate(card.key)} style={{
                 background: C.card, borderRadius: 18, padding: '28px 26px',
                 cursor: 'pointer', border: `1px solid ${C.border}`,
-                boxShadow: '0 2px 10px rgba(0,0,0,0.05)', transition: 'transform 0.17s, box-shadow 0.17s',
+                boxShadow: `0 2px 12px rgba(0,0,0,${dark ? '0.3' : '0.06'})`,
+                transition: 'transform 0.17s, box-shadow 0.17s, background-color 0.3s',
               }}
-                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 10px 30px rgba(0,0,0,0.12)'; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)';    e.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,0.05)'; }}>
+                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-5px)'; e.currentTarget.style.boxShadow = `0 12px 32px rgba(0,0,0,${dark ? '0.5' : '0.13'})`; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)';    e.currentTarget.style.boxShadow = `0 2px 12px rgba(0,0,0,${dark ? '0.3' : '0.06'})`; }}>
                 <div style={{
                   width: 54, height: 54, borderRadius: 14, background: card.bg,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -513,18 +708,22 @@
   // ──────────────────────────────────────────────────────────────────────────
 
   function AddCasePage({ onBack, isExisting }) {
+    const { C } = useTheme();
     const blank = () => ({
-      name: '', father_name: '', address: '', items: '', weight: '', metal: 'Gold',
+      name: '', father_name: '', address: '', mobile: '', items: '', weight: '', metal: 'Gold',
       money_lent: '', interest_rate: '',
-      loan_date: isExisting ? '' : today(),
+      loan_date: isExisting ? '' : todayStr(),
       loan_time: isExisting ? '' : nowTime(),
       notes: '',
+      probable_close_date: '', hard_deadline: '',
+      address_proof: '', lending_video: '',
     });
     const [form, setForm]       = useState(blank());
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(null);
     const [error, setError]     = useState('');
-    const set = k => e => { setForm(f => ({ ...f, [k]: e.target.value })); setError(''); };
+    const set  = k => e => { setForm(f => ({ ...f, [k]: e.target.value })); setError(''); };
+    const setF = k => v  => { setForm(f => ({ ...f, [k]: v })); };          // for file fields
     const submit = async e => {
       e.preventDefault();
       if (!form.name.trim()) { setError('Borrower name is required.'); return; }
@@ -533,15 +732,19 @@
         const res = await api.post('/api/cases', form);
         setSuccess(res.id); setForm(blank());
         window.scrollTo({ top: 0, behavior: 'smooth' });
-      } catch (err) { setError(err.message || 'Failed to save. Please try again.'); }
+      } catch (err) { setError(err.message || 'Failed to save.'); }
       finally { setLoading(false); }
     };
     const g2 = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 };
     const g3 = { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 };
+
+    // Hard-deadline overdue warning
+    const hdPast = form.hard_deadline && new Date(form.hard_deadline) < new Date();
+
     return (
-      <div style={{ minHeight: '100vh', background: C.bg }}>
+      <div style={{ minHeight: '100vh', background: C.bg, transition: 'background-color 0.3s' }}>
         <Navbar title={isExisting ? 'Add Existing Case' : 'Add New Case'} onBack={onBack} />
-        <div className="fade-in" style={{ padding: '28px 20px', maxWidth: 740, margin: '0 auto' }}>
+        <div className="fade-in" style={{ padding: '28px 20px', maxWidth: 800, margin: '0 auto' }}>
           {isExisting && <div style={{ marginBottom: 16 }}><Alert type="info">📂 Entering an existing record — fill in the original loan date &amp; time manually.</Alert></div>}
           {success && (
             <div style={{ marginBottom: 16 }}>
@@ -550,8 +753,10 @@
               </Alert>
             </div>
           )}
-          <div style={{ background: C.card, borderRadius: 16, padding: '28px 26px', border: `1px solid ${C.border}`, boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
+          <Card>
             <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+
+              {/* ── Borrower Details ─────────────────────────────────────── */}
               <div>
                 <SectionTitle>Borrower Details</SectionTitle>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -559,9 +764,21 @@
                     <Input label="Borrower Name" required value={form.name} onChange={set('name')} placeholder="Full name" autoFocus />
                     <Input label="Father's Name" value={form.father_name} onChange={set('father_name')} placeholder="Father's full name" />
                   </div>
+                  <div style={g2}>
+                    <Input label="Mobile Number" type="tel" value={form.mobile} onChange={set('mobile')} placeholder="e.g. 9876543210" />
+                    <div />
+                  </div>
                   <Textarea label="Address" value={form.address} onChange={set('address')} rows={2} placeholder="Full address..." />
+                  <FileUpload
+                    label="Address Proof Image (Aadhaar / PAN / Passport)"
+                    accept="image/*"
+                    value={form.address_proof}
+                    onChange={setF('address_proof')}
+                  />
                 </div>
               </div>
+
+              {/* ── Pledged Item ─────────────────────────────────────────── */}
               <div>
                 <SectionTitle>Pledged Item</SectionTitle>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -576,6 +793,8 @@
                   </div>
                 </div>
               </div>
+
+              {/* ── Loan Details ─────────────────────────────────────────── */}
               <div>
                 <SectionTitle>Loan Details</SectionTitle>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -587,16 +806,47 @@
                     <Input label={isExisting ? 'Original Loan Date' : 'Date'} type="date" value={form.loan_date} onChange={set('loan_date')} required={isExisting} />
                     <Input label={isExisting ? 'Original Loan Time' : 'Time'} type="time" value={form.loan_time} onChange={set('loan_time')} />
                   </div>
+                  <div style={g2}>
+                    <Input
+                      label="Probable Close (Month & Year)"
+                      type="month"
+                      value={form.probable_close_date}
+                      onChange={set('probable_close_date')}
+                    />
+                    <div>
+                      <Input
+                        label="Hard Deadline (Asset Confiscation Date)"
+                        type="date"
+                        value={form.hard_deadline}
+                        onChange={set('hard_deadline')}
+                        style={hdPast ? { borderColor: C.error } : {}}
+                      />
+                      {hdPast && <div style={{ fontSize: 11, color: C.error, marginTop: 4 }}>⚠️ This date is already past!</div>}
+                    </div>
+                  </div>
                   <Textarea label="Notes (optional)" value={form.notes} onChange={set('notes')} rows={3} placeholder="Any additional notes..." />
                 </div>
               </div>
+
+              {/* ── Lending Proof ─────────────────────────────────────────── */}
+              <div>
+                <SectionTitle>Lending Proof Video</SectionTitle>
+                <FileUpload
+                  label="Upload video of borrower receiving the loan (optional)"
+                  accept="video/*"
+                  value={form.lending_video}
+                  onChange={setF('lending_video')}
+                  maxMB={25}
+                />
+              </div>
+
               {error && <Alert type="error">{error}</Alert>}
               <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', paddingTop: 4 }}>
                 <Btn type="button" variant="secondary" onClick={onBack}>Cancel</Btn>
                 <Btn type="submit" loading={loading}>💾 Save Case</Btn>
               </div>
             </form>
-          </div>
+          </Card>
         </div>
       </div>
     );
@@ -604,111 +854,172 @@
 
   // ── Case Detail Modal ──────────────────────────────────────────────────────
 
-  function CaseDetailModal({ c, onClose, onClosed }) {
-    const [amtReceived,     setAmtReceived]     = useState('');
-    const [closing,         setClosing]         = useState(false);
-    const [closeErr,        setCloseErr]        = useState('');
-    const [done,            setDone]            = useState(false);
-    const [confirmBadDebt,  setConfirmBadDebt]  = useState(false);
-    const [markingBad,      setMarkingBad]      = useState(false);
-    const [badDebtErr,      setBadDebtErr]      = useState('');
-    const [badDebtDone,     setBadDebtDone]     = useState(false);
+  function CaseDetailModal({ caseId, caseBasic, onClose, onClosed }) {
+    const { C } = useTheme();
+    // Start with basic list data, then upgrade to full (with files) asynchronously
+    const [c, setC]               = useState(caseBasic);
+    const [loadingFull, setLF]    = useState(true);
+    const [amtReceived,    setAmtReceived]    = useState('');
+    const [closingVideo,   setClosingVideo]   = useState('');
+    const [closing,        setClosing]        = useState(false);
+    const [closeErr,       setCloseErr]       = useState('');
+    const [done,           setDone]           = useState(false);
+    const [confirmBD,      setConfirmBD]      = useState(false);
+    const [markingBD,      setMarkingBD]      = useState(false);
+    const [bdErr,          setBdErr]          = useState('');
+    const [bdDone,         setBdDone]         = useState(false);
+
+    useEffect(() => {
+      api.get(`/api/cases/${caseId}`)
+        .then(full => { setC(full); setLF(false); })
+        .catch(() => setLF(false));
+    }, [caseId]);
 
     const isOpen    = c.status === 'open';
     const isClosed  = c.status === 'closed';
     const isBadDebt = c.status === 'bad_debt';
-    const canClose  = isOpen || isBadDebt; // bad debt cases can still be closed if payment arrives
+    const canClose  = isOpen || isBadDebt;
+    const calc      = calcInterest(c, isClosed ? c.closed_at : null);
+    const fmtI      = v => `₹${Math.round(v).toLocaleString('en-IN')}`;
 
-    const calc    = calcInterest(c, isClosed ? c.closed_at : null);
-    const fmtI    = v => `₹${Math.round(v).toLocaleString('en-IN')}`;
+    // Hard deadline overdue check
+    const hdDate   = c.hard_deadline ? new Date(c.hard_deadline) : null;
+    const hdPast   = hdDate && hdDate < new Date() && !isClosed;
 
     const doClose = async () => {
       if (amtReceived === '') { setCloseErr('Please enter the amount received.'); return; }
       setClosing(true); setCloseErr('');
       try {
-        await api.post(`/api/cases/${c.id}/close`, { amount_received: parseFloat(amtReceived) });
-        setDone(true); onClosed();
-        setTimeout(onClose, 1800);
-      } catch (e) { setCloseErr(e.message || 'Failed to close case.'); }
+        await api.post(`/api/cases/${c.id}/close`, {
+          amount_received: parseFloat(amtReceived),
+          closing_video:   closingVideo || null,
+        });
+        setDone(true); onClosed(); setTimeout(onClose, 1800);
+      } catch (e) { setCloseErr(e.message || 'Failed.'); }
       finally { setClosing(false); }
     };
-
     const doBadDebt = async () => {
-      setMarkingBad(true); setBadDebtErr('');
+      setMarkingBD(true); setBdErr('');
       try {
         await api.post(`/api/cases/${c.id}/bad-debt`, {});
-        setBadDebtDone(true); onClosed();
-        setTimeout(onClose, 1800);
-      } catch (e) { setBadDebtErr(e.message || 'Failed to mark as bad debt.'); }
-      finally { setMarkingBad(false); }
+        setBdDone(true); onClosed(); setTimeout(onClose, 1800);
+      } catch (e) { setBdErr(e.message || 'Failed.'); }
+      finally { setMarkingBD(false); }
     };
+
+    const SecHd = ({ children }) => (
+      <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 10 }}>{children}</div>
+    );
 
     return (
       <div onClick={e => e.target === e.currentTarget && onClose()} style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 300,
+        position: 'fixed', inset: 0, background: C.modalOverlay, zIndex: 300,
         display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+        backdropFilter: 'blur(2px)',
       }}>
         <div className="fade-in" style={{
-          background: C.card, borderRadius: 20, width: '100%', maxWidth: 580,
-          maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 60px rgba(0,0,0,0.35)',
+          background: C.card, borderRadius: 20, width: '100%', maxWidth: 600,
+          maxHeight: '92vh', overflowY: 'auto',
+          boxShadow: '0 28px 64px rgba(0,0,0,0.45)',
+          border: `1px solid ${C.border}`,
+          transition: 'background-color 0.3s',
         }}>
-          {/* Sticky header */}
+          {/* Header */}
           <div style={{
             padding: '18px 24px', borderBottom: `1px solid ${C.border}`,
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             position: 'sticky', top: 0, background: C.card, zIndex: 1, borderRadius: '20px 20px 0 0',
+            transition: 'background-color 0.3s',
           }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span style={{ fontWeight: 800, fontSize: 18, color: C.text }}>Case #{c.id}</span>
                 <StatusBadge status={c.status} />
+                {loadingFull && <span style={{ fontSize: 11, color: C.faint }}>loading…</span>}
               </div>
               <div style={{ fontSize: 13.5, color: C.muted, marginTop: 3 }}>{c.name}</div>
             </div>
             <button onClick={onClose} style={{
-              background: C.bg, border: 'none', borderRadius: 8, width: 34, height: 34,
-              cursor: 'pointer', fontSize: 16, color: C.muted,
+              background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8,
+              width: 34, height: 34, cursor: 'pointer', fontSize: 15, color: C.muted,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>✕</button>
           </div>
 
           <div style={{ padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-            {/* Borrower */}
+            {/* Overdue hard-deadline banner */}
+            {hdPast && (
+              <Alert type="error">
+                🚨 <strong>Hard Deadline Passed!</strong> Deadline was {c.hard_deadline}.
+                Metal can be melted / asset confiscated per terms.
+              </Alert>
+            )}
+
+            {/* Borrower Details */}
             <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 10 }}>Borrower Details</div>
+              <SecHd>Borrower Details</SecHd>
               <InfoRow label="Name"          value={c.name} />
               {c.father_name && <InfoRow label="Father's Name" value={c.father_name} />}
+              {c.mobile      && <InfoRow label="Mobile"        value={c.mobile} />}
               {c.address     && <InfoRow label="Address"       value={c.address} />}
+              {/* Address Proof Image */}
+              {c.address_proof && (
+                <div style={{ marginTop: 10 }}>
+                  <div style={{ fontSize: 12, color: C.muted, marginBottom: 6 }}>Address Proof</div>
+                  <img src={c.address_proof} alt="address proof"
+                    style={{ width: '100%', maxHeight: 200, objectFit: 'cover', borderRadius: 8, border: `1px solid ${C.border}` }} />
+                </div>
+              )}
             </div>
 
-            {/* Pledged item */}
+            {/* Pledged Item */}
             {(c.items || c.weight || c.metal) && (
               <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 10 }}>Pledged Item</div>
+                <SecHd>Pledged Item</SecHd>
                 {c.items  && <InfoRow label="Description" value={c.items} />}
                 {c.weight && <InfoRow label="Weight"      value={`${c.weight}g`} />}
                 {c.metal  && <InfoRow label="Metal"       value={c.metal} />}
               </div>
             )}
 
-            {/* Loan details */}
+            {/* Loan Details */}
             <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 10 }}>Loan Details</div>
+              <SecHd>Loan Details</SecHd>
               <InfoRow label="Loan Date"     value={c.loan_date || '—'} />
-              {c.loan_time   && <InfoRow label="Loan Time"    value={c.loan_time} />}
+              {c.loan_time          && <InfoRow label="Loan Time"           value={c.loan_time} />}
               <InfoRow label="Amount Lent"   value={fmt(c.money_lent, '₹')} />
               <InfoRow label="Interest Rate" value={c.interest_rate ? `${c.interest_rate}% / month` : '—'} />
-              {c.notes       && <InfoRow label="Notes"        value={c.notes} />}
+              {c.probable_close_date && (
+                <InfoRow label="Probable Close"
+                  value={new Date(c.probable_close_date + '-01').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })} />
+              )}
+              {c.hard_deadline && (
+                <InfoRow label="Hard Deadline"
+                  value={
+                    <span style={{ color: hdPast ? C.error : C.text, fontWeight: hdPast ? 700 : 500 }}>
+                      {c.hard_deadline}{hdPast ? ' ⚠️ OVERDUE' : ''}
+                    </span>
+                  } />
+              )}
+              {c.notes              && <InfoRow label="Notes"               value={c.notes} />}
             </div>
 
-            {/* Interest calculation box */}
+            {/* Lending proof video */}
+            {c.lending_video && (
+              <div>
+                <SecHd>Lending Proof Video</SecHd>
+                <video src={c.lending_video} controls style={{ width: '100%', borderRadius: 10, border: `1px solid ${C.border}` }} />
+              </div>
+            )}
+
+            {/* Interest calculation */}
             {calc && (
-              <div style={{ background: C.primaryLight, borderRadius: 14, padding: '18px 20px' }}>
+              <div style={{ background: C.primaryLight, borderRadius: 14, padding: '18px 20px', border: `1px solid ${C.primary}25` }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: C.primary, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 14 }}>
                   Interest Calculation
-                  <span style={{ fontWeight: 400, fontSize: 11, marginLeft: 8, opacity: 0.75 }}>
-                    ({isClosed ? `closed ${c.closed_at ? c.closed_at.slice(0, 10) : ''}` : 'as of today'})
+                  <span style={{ fontWeight: 400, fontSize: 11, marginLeft: 8, opacity: 0.7 }}>
+                    ({isClosed ? `closed ${c.closed_at ? c.closed_at.slice(0,10) : ''}` : 'as of today'})
                   </span>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -717,9 +1028,8 @@
                     <span style={{ fontWeight: 600, color: C.text }}>{fmtI(calc.principal)}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: C.muted, fontSize: 13.5 }}>
-                      Months @ {c.interest_rate}%
-                      <span style={{ fontSize: 11, marginLeft: 5, opacity: 0.65 }}>(incomplete = full month)</span>
+                    <span style={{ color: C.muted, fontSize: 13.5 }}>Months @ {c.interest_rate}%
+                      <span style={{ fontSize: 11, marginLeft: 5, opacity: 0.65 }}>(incomplete = full)</span>
                     </span>
                     <span style={{ fontWeight: 600, color: C.text }}>{calc.months} mo</span>
                   </div>
@@ -727,7 +1037,7 @@
                     <span style={{ color: C.muted, fontSize: 13.5 }}>Interest Amount</span>
                     <span style={{ fontWeight: 600, color: C.text }}>{fmtI(calc.interest)}</span>
                   </div>
-                  <div style={{ borderTop: `2px solid ${C.primary}40`, paddingTop: 12, marginTop: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ borderTop: `2px solid ${C.primary}35`, paddingTop: 12, marginTop: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontWeight: 700, color: C.primary, fontSize: 14 }}>Total (Principal + Interest)</span>
                     <span style={{ fontWeight: 800, fontSize: 22, color: C.primary }}>{fmtI(calc.total)}</span>
                   </div>
@@ -735,10 +1045,10 @@
               </div>
             )}
 
-            {/* ── OPEN / BAD-DEBT: close case ── */}
-            {canClose && !done && !badDebtDone && (
+            {/* Close case section */}
+            {canClose && !done && !bdDone && (
               <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 18 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 14 }}>Close This Case</div>
+                <SecHd>Close This Case</SecHd>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <Input
                     label="Amount Received (₹)" type="number" step="0.01" min="0"
@@ -746,30 +1056,33 @@
                     onChange={e => { setAmtReceived(e.target.value); setCloseErr(''); }}
                     placeholder={calc ? `Total due: ₹${Math.round(calc.total).toLocaleString('en-IN')}` : 'Enter amount received'}
                   />
+                  <FileUpload
+                    label="Closing Proof Video (borrower collecting item — optional)"
+                    accept="video/*"
+                    value={closingVideo}
+                    onChange={setClosingVideo}
+                    maxMB={25}
+                  />
                   {closeErr && <Alert type="error">{closeErr}</Alert>}
                   <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                     <Btn variant="secondary" onClick={onClose}>Cancel</Btn>
                     <Btn variant="danger" onClick={doClose} loading={closing}>🔒 Close Case</Btn>
                   </div>
                 </div>
-
-                {/* Bad debt option — only for open cases */}
                 {isOpen && (
                   <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px dashed ${C.border}` }}>
-                    {!confirmBadDebt ? (
-                      <button onClick={() => setConfirmBadDebt(true)} style={{
-                        background: 'none', border: 'none', color: C.amber, cursor: 'pointer',
-                        fontSize: 13, fontWeight: 600, padding: 0,
+                    {!confirmBD ? (
+                      <button onClick={() => setConfirmBD(true)} style={{
+                        background: 'none', border: 'none', color: C.amber,
+                        cursor: 'pointer', fontSize: 13, fontWeight: 600, padding: 0,
                       }}>⚠️ Mark as Bad Debt</button>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        <Alert type="warning">
-                          ⚠️ Marking as bad debt means you don't expect this loan to be recovered. Are you sure?
-                        </Alert>
-                        {badDebtErr && <Alert type="error">{badDebtErr}</Alert>}
+                        <Alert type="warning">⚠️ Marking as bad debt means you don't expect this loan to be recovered. Are you sure?</Alert>
+                        {bdErr && <Alert type="error">{bdErr}</Alert>}
                         <div style={{ display: 'flex', gap: 8 }}>
-                          <Btn variant="ghost" onClick={() => setConfirmBadDebt(false)}>Cancel</Btn>
-                          <Btn variant="warning" onClick={doBadDebt} loading={markingBad}>Confirm Bad Debt</Btn>
+                          <Btn variant="ghost" onClick={() => setConfirmBD(false)}>Cancel</Btn>
+                          <Btn variant="warning" onClick={doBadDebt} loading={markingBD}>Confirm Bad Debt</Btn>
                         </div>
                       </div>
                     )}
@@ -778,14 +1091,13 @@
               </div>
             )}
 
-            {/* ── Success states ── */}
-            {done && <Alert type="success">✅ Case #{c.id} closed successfully!</Alert>}
-            {badDebtDone && <Alert type="warning">⚠️ Case #{c.id} marked as bad debt.</Alert>}
+            {done   && <Alert type="success">✅ Case #{c.id} closed successfully!</Alert>}
+            {bdDone && <Alert type="warning">⚠️ Case #{c.id} marked as bad debt.</Alert>}
 
-            {/* ── CLOSED: closure summary ── */}
+            {/* Closure summary */}
             {isClosed && (
-              <div style={{ background: C.errorLight, borderRadius: 12, padding: '16px 18px', border: '1px solid #FECACA' }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: C.error, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 10 }}>Closure Summary</div>
+              <div style={{ background: C.errorLight, borderRadius: 12, padding: '16px 18px', border: `1px solid ${C.errorBorder}` }}>
+                <SecHd>Closure Summary</SecHd>
                 <InfoRow label="Closed At"       value={c.closed_at || '—'} />
                 <InfoRow label="Amount Received" value={fmt(c.amount_received, '₹')} />
                 {calc && c.amount_received != null && (() => {
@@ -793,15 +1105,20 @@
                   return <InfoRow label={diff >= 0 ? 'Surplus' : 'Pending Balance'}
                     value={`₹${Math.abs(diff).toLocaleString('en-IN')} ${diff >= 0 ? '(surplus)' : '(pending)'}`} />;
                 })()}
+                {c.closing_video && (
+                  <div style={{ marginTop: 12 }}>
+                    <div style={{ fontSize: 12, color: C.muted, marginBottom: 6 }}>Closing Proof Video</div>
+                    <video src={c.closing_video} controls style={{ width: '100%', borderRadius: 8, border: `1px solid ${C.errorBorder}` }} />
+                  </div>
+                )}
               </div>
             )}
 
-            {/* ── BAD DEBT: notice ── */}
-            {isBadDebt && !badDebtDone && (
-              <div style={{ background: C.amberLight, borderRadius: 12, padding: '16px 18px', border: `1px solid ${C.amber}40` }}>
+            {isBadDebt && !bdDone && (
+              <div style={{ background: C.amberLight, borderRadius: 12, padding: '16px 18px', border: `1px solid ${C.amberBorder}` }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: C.amber, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>Bad Debt Notice</div>
-                <p style={{ fontSize: 13, color: C.muted }}>This case has been written off as a bad debt. If payment is later received, you can still close the case above.</p>
-                {calc && <p style={{ fontSize: 13, color: C.muted, marginTop: 6, fontWeight: 600 }}>Outstanding (as of today): {`₹${Math.round(calc.total).toLocaleString('en-IN')}`}</p>}
+                <p style={{ fontSize: 13, color: C.muted }}>This case is written off as bad debt. You can still close it if payment is later received.</p>
+                {calc && <p style={{ fontSize: 13, color: C.muted, marginTop: 6, fontWeight: 600 }}>Outstanding today: ₹{Math.round(calc.total).toLocaleString('en-IN')}</p>}
               </div>
             )}
 
@@ -814,14 +1131,15 @@
   // ──────────────────────────────────────────────────────────────────────────
 
   function ViewCasesPage({ onBack }) {
+    const { C, dark } = useTheme();
     const [cases, setCases]           = useState([]);
     const [loading, setLoading]       = useState(true);
     const [error, setError]           = useState('');
     const [selectedCase, setSelected] = useState(null);
-    const [filters, setFilters]       = useState({ q: '', metal: '', from: '', to: '', amt_min: '', amt_max: '', amt_exact: '', status: '' });
+    const [filters, setFilters]       = useState({ q:'', metal:'', from:'', to:'', amt_min:'', amt_max:'', amt_exact:'', status:'' });
     const setF = k => e => setFilters(f => ({ ...f, [k]: e.target.value }));
 
-    const loadCases = useCallback(async (f) => {
+    const loadCases = useCallback(async f => {
       setLoading(true); setError('');
       try {
         const p = new URLSearchParams();
@@ -835,35 +1153,44 @@
           if (f.amt_max) p.set('amt_max', f.amt_max);
         }
         if (f.status) p.set('status', f.status);
-        const data = await api.get('/api/cases?' + p.toString());
+        const data = await api.get('/api/cases?' + p);
         setCases(Array.isArray(data) ? data : []);
-      } catch (err) { setError(err.message || 'Failed to load cases.'); }
+      } catch (err) { setError(err.message || 'Failed to load.'); }
       finally { setLoading(false); }
     }, []);
 
     useEffect(() => { loadCases(filters); }, []);
 
     const clearFilters = () => {
-      const c = { q: '', metal: '', from: '', to: '', amt_min: '', amt_max: '', amt_exact: '', status: '' };
+      const c = { q:'', metal:'', from:'', to:'', amt_min:'', amt_max:'', amt_exact:'', status:'' };
       setFilters(c); loadCases(c);
     };
 
-    const gF = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(155px, 1fr))', gap: 12 };
+    const filterCard = {
+      background: C.card, borderRadius: 14, padding: '20px 22px',
+      border: `1px solid ${C.border}`,
+      boxShadow: `0 2px 8px rgba(0,0,0,${dark ? '0.3' : '0.05'})`,
+      marginBottom: 18, transition: 'background-color 0.3s',
+    };
 
     return (
-      <div style={{ minHeight: '100vh', background: C.bg }}>
+      <div style={{ minHeight: '100vh', background: C.bg, transition: 'background-color 0.3s' }}>
         <Navbar title="All Cases" onBack={onBack} />
-
         {selectedCase && (
-          <CaseDetailModal c={selectedCase} onClose={() => setSelected(null)} onClosed={() => loadCases(filters)} />
+          <CaseDetailModal
+            caseId={selectedCase.id}
+            caseBasic={selectedCase}
+            onClose={() => setSelected(null)}
+            onClosed={() => loadCases(filters)}
+          />
         )}
-
         <div className="fade-in" style={{ padding: '28px 20px', maxWidth: 1200, margin: '0 auto' }}>
+
           {/* Filters */}
-          <div style={{ background: C.card, borderRadius: 14, padding: '20px 22px', border: `1px solid ${C.border}`, boxShadow: '0 2px 8px rgba(0,0,0,0.05)', marginBottom: 18 }}>
+          <div style={filterCard}>
             <div style={{ fontWeight: 700, fontSize: 13, color: C.muted, marginBottom: 14, letterSpacing: '0.04em' }}>🔍 SEARCH &amp; FILTER</div>
-            <div style={gF}>
-              <Input label="Search" value={filters.q} onChange={setF('q')} placeholder="Name, father, items, ID…" onKeyDown={e => e.key === 'Enter' && loadCases(filters)} />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(155px, 1fr))', gap: 12 }}>
+              <Input label="Search" value={filters.q} onChange={setF('q')} placeholder="Name, items, ID…" onKeyDown={e => e.key === 'Enter' && loadCases(filters)} />
               <Select label="Metal" value={filters.metal} onChange={setF('metal')}>
                 <option value="">All Metals</option>
                 {METALS.map(m => <option key={m} value={m}>{m}</option>)}
@@ -877,8 +1204,10 @@
               <Input label="Date From" type="date" value={filters.from} onChange={setF('from')} />
               <Input label="Date To"   type="date" value={filters.to}   onChange={setF('to')}   />
               <Input label="Exact Amount (₹)" type="number" value={filters.amt_exact} onChange={setF('amt_exact')} placeholder="e.g. 50000" />
-              <Input label="Min Amount (₹)" type="number" value={filters.amt_min} onChange={setF('amt_min')} placeholder="e.g. 10000" style={{ opacity: filters.amt_exact ? 0.4 : 1 }} disabled={!!filters.amt_exact} />
-              <Input label="Max Amount (₹)" type="number" value={filters.amt_max} onChange={setF('amt_max')} placeholder="e.g. 100000" style={{ opacity: filters.amt_exact ? 0.4 : 1 }} disabled={!!filters.amt_exact} />
+              <Input label="Min Amount (₹)" type="number" value={filters.amt_min} onChange={setF('amt_min')} placeholder="10000"
+                style={{ opacity: filters.amt_exact ? 0.4 : 1 }} disabled={!!filters.amt_exact} />
+              <Input label="Max Amount (₹)" type="number" value={filters.amt_max} onChange={setF('amt_max')} placeholder="100000"
+                style={{ opacity: filters.amt_exact ? 0.4 : 1 }} disabled={!!filters.amt_exact} />
             </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 14 }}>
               <Btn variant="secondary" onClick={clearFilters}>Clear</Btn>
@@ -887,12 +1216,21 @@
           </div>
 
           {/* Results */}
-          <div style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, boxShadow: '0 2px 8px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
-            <div style={{ padding: '14px 20px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#FAFBFC' }}>
+          <div style={{
+            background: C.card, borderRadius: 14,
+            border: `1px solid ${C.border}`,
+            boxShadow: `0 2px 8px rgba(0,0,0,${dark ? '0.3' : '0.05'})`,
+            overflow: 'hidden', transition: 'background-color 0.3s',
+          }}>
+            <div style={{
+              padding: '14px 20px', borderBottom: `1px solid ${C.border}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              background: C.cardAlt, transition: 'background-color 0.3s',
+            }}>
               <span style={{ fontWeight: 700, fontSize: 14, color: C.text }}>
                 {loading ? 'Loading…' : `${cases.length} record${cases.length !== 1 ? 's' : ''} found`}
               </span>
-              <span style={{ fontSize: 12, color: C.faint }}>Click a row to view details / close / mark bad debt</span>
+              <span style={{ fontSize: 12, color: C.faint }}>Click a row to view / close / bad-debt</span>
             </div>
             {error && <div style={{ padding: 20 }}><Alert type="error">{error}</Alert></div>}
             {loading ? (
@@ -904,27 +1242,34 @@
                 <table>
                   <thead>
                     <tr>
-                      <th>#</th><th>Status</th><th>Borrower Name</th><th>Father's Name</th>
-                      <th>Items</th><th>Metal</th><th>Weight</th><th>Amount Lent</th>
-                      <th>Interest</th><th>Date</th><th>Notes</th>
+                      <th>#</th><th>Status</th><th>Borrower</th><th>Mobile</th><th>Father's Name</th>
+                      <th>Items</th><th>Metal</th><th>Weight</th>
+                      <th>Amount Lent</th><th>Rate</th><th>Date</th><th>Deadline</th><th>Notes</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {cases.map(c => (
-                      <tr key={c.id} onClick={() => setSelected(c)} style={{ opacity: c.status === 'bad_debt' ? 0.7 : 1 }}>
+                    {cases.map(c => {
+                      const dlPast = c.hard_deadline && new Date(c.hard_deadline) < new Date() && c.status === 'open';
+                      return (
+                      <tr key={c.id} onClick={() => setSelected(c)} style={{ opacity: c.status === 'bad_debt' ? 0.72 : 1 }}>
                         <td><span style={{ fontWeight: 700, color: C.primary, fontSize: 13 }}>#{c.id}</span></td>
                         <td><StatusBadge status={c.status} /></td>
                         <td style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{c.name}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>{c.mobile || '—'}</td>
                         <td style={{ whiteSpace: 'nowrap' }}>{c.father_name || '—'}</td>
                         <td style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c.items}>{c.items || '—'}</td>
-                        <td>{c.metal ? <span style={{ padding: '2px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600, background: C.primaryLight, color: C.primary }}>{c.metal}</span> : '—'}</td>
+                        <td>{c.metal ? <span style={{ padding:'2px 10px', borderRadius:20, fontSize:12, fontWeight:600, background:C.primaryLight, color:C.primary }}>{c.metal}</span> : '—'}</td>
                         <td>{c.weight != null ? `${c.weight}g` : '—'}</td>
                         <td style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{fmt(c.money_lent, '₹')}</td>
                         <td>{c.interest_rate != null ? `${c.interest_rate}%/mo` : '—'}</td>
                         <td style={{ whiteSpace: 'nowrap' }}>{c.loan_date || '—'}</td>
-                        <td style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: C.muted }} title={c.notes}>{c.notes || '—'}</td>
+                        <td style={{ whiteSpace: 'nowrap', color: dlPast ? C.error : 'inherit', fontWeight: dlPast ? 700 : 400 }}>
+                          {c.hard_deadline ? (dlPast ? `⚠️ ${c.hard_deadline}` : c.hard_deadline) : '—'}
+                        </td>
+                        <td style={{ maxWidth: 140, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={c.notes}>{c.notes || '—'}</td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -938,6 +1283,7 @@
   // ── Dashboard ──────────────────────────────────────────────────────────────
 
   function DashboardPage({ onBack }) {
+    const { C, dark } = useTheme();
     const [data, setData]       = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError]     = useState('');
@@ -948,103 +1294,77 @@
         .catch(e => { setError(e.message); setLoading(false); });
     }, []);
 
-    if (loading) return (
-      <div style={{ minHeight: '100vh', background: C.bg }}>
+    const spinnerPage = msg => (
+      <div style={{ minHeight: '100vh', background: C.bg, transition: 'background-color 0.3s' }}>
         <Navbar title="Dashboard & Analytics" onBack={onBack} />
         <div style={{ padding: 60, textAlign: 'center', color: C.faint }}>
           <div style={{ fontSize: 40, marginBottom: 16 }}>📊</div>
-          <div>Crunching numbers…</div>
+          <div>{msg}</div>
         </div>
       </div>
     );
 
-    if (error) return (
+    if (loading) return spinnerPage('Crunching numbers…');
+    if (error)   return (
       <div style={{ minHeight: '100vh', background: C.bg }}>
         <Navbar title="Dashboard & Analytics" onBack={onBack} />
         <div style={{ padding: 40 }}><Alert type="error">{error}</Alert></div>
       </div>
     );
+    if (data.total_cases === 0) return spinnerPage('No cases yet. Add your first case to see analytics.');
 
     const d = data;
-
-    if (d.total_cases === 0) return (
-      <div style={{ minHeight: '100vh', background: C.bg }}>
-        <Navbar title="Dashboard & Analytics" onBack={onBack} />
-        <div style={{ padding: 60, textAlign: 'center', color: C.faint }}>
-          <div style={{ fontSize: 40, marginBottom: 16 }}>📭</div>
-          <div>No cases yet. Add your first case to see analytics.</div>
-        </div>
-      </div>
+    const mLabels = d.monthly_trend.map(r => fmtMonth(r.month));
+    const g = (min, mb = 16) => ({ display: 'grid', gridTemplateColumns: `repeat(auto-fit, minmax(${min}px, 1fr))`, gap: mb, marginBottom: mb });
+    const secHead = label => (
+      <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 12 }}>{label}</div>
     );
 
-    const wrap = { padding: '28px 20px', maxWidth: 1200, margin: '0 auto' };
-    const row  = (cols, gap = 16) => ({ display: 'grid', gridTemplateColumns: `repeat(auto-fit, minmax(${cols}px, 1fr))`, gap, marginBottom: gap });
-
-    // Month labels for charts
-    const monthLabels = d.monthly_trend.map(r => fmtMonth(r.month));
-
     return (
-      <div style={{ minHeight: '100vh', background: C.bg }}>
+      <div style={{ minHeight: '100vh', background: C.bg, transition: 'background-color 0.3s' }}>
         <Navbar title="Dashboard & Analytics" onBack={onBack} />
-        <div className="fade-in" style={wrap}>
+        <div className="fade-in" style={{ padding: '28px 20px', maxWidth: 1200, margin: '0 auto' }}>
 
-          {/* ── SECTION 1: Primary money KPIs ── */}
-          <div style={{ marginBottom: 8 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 12 }}>💰 Portfolio Overview</div>
-          </div>
-          <div style={row(180)}>
-            <KpiCard label="Total Principal Lent"     value={fmtCompact(d.total_principal)}          icon="💰" color={C.primary} />
-            <KpiCard label="Interest Generated"       value={fmtCompact(d.total_interest_generated)} icon="📈" color={C.success}
-              sub="on all closed cases" />
-            <KpiCard label="Total Received"           value={fmtCompact(d.total_amount_received)}    icon="💵" color={C.green} />
-            <KpiCard label="Outstanding Receivable"   value={fmtCompact(d.outstanding_receivable)}   icon="⏳" color={C.amber}
-              sub="principal + accrued on open cases" />
-            <KpiCard label="Projected Interest"       value={fmtCompact(d.projected_interest)}       icon="🔮" color={C.cyan}
-              sub="if all open cases closed today" />
-            <KpiCard label="Bad Debt Amount"          value={fmtCompact(d.bad_debt_amount)}          icon="⚠️" color={C.error}
-              sub={`${d.bad_debt_cases} case${d.bad_debt_cases !== 1 ? 's' : ''}`} />
+          {secHead('💰 Portfolio Overview')}
+          <div style={g(180)}>
+            <KpiCard label="Total Principal Lent"   value={fmtCompact(d.total_principal)}          icon="💰" color={C.primary} />
+            <KpiCard label="Interest Generated"     value={fmtCompact(d.total_interest_generated)} icon="📈" color={C.success} sub="on all closed cases" />
+            <KpiCard label="Total Received"         value={fmtCompact(d.total_amount_received)}    icon="💵" color={C.green} />
+            <KpiCard label="Outstanding Receivable" value={fmtCompact(d.outstanding_receivable)}   icon="⏳" color={C.amber} sub="principal + accrued on open cases" />
+            <KpiCard label="Projected Interest"     value={fmtCompact(d.projected_interest)}       icon="🔮" color={C.cyan}  sub="if all open cases closed today" />
+            <KpiCard label="Bad Debt Amount"        value={fmtCompact(d.bad_debt_amount)}          icon="⚠️" color={C.error} sub={`${d.bad_debt_cases} case${d.bad_debt_cases !== 1 ? 's' : ''}`} />
           </div>
 
-          {/* ── SECTION 2: Count + rate KPIs ── */}
-          <div style={row(160)}>
-            <KpiCard label="Open Cases"            value={d.open_cases}              icon="📂" color={C.cyan} />
-            <KpiCard label="Closed Cases"          value={d.closed_cases}            icon="✅" color={C.green} />
-            <KpiCard label="Bad Debt Cases"        value={d.bad_debt_cases}          icon="🚫" color={C.error} />
-            <KpiCard label="Recovery Rate"         value={`${d.recovery_rate}%`}     icon="🎯" color={C.success}
-              sub="closed cases fully recovered" />
-            <KpiCard label="Effective Yield"       value={`${d.effective_yield}%`}   icon="📊" color={C.primary}
-              sub="interest / principal (closed)" />
-            <KpiCard label="Collection Efficiency" value={`${d.collection_efficiency}%`} icon="⚡" color={C.violet}
-              sub="received / (received + outstanding)" />
+          <div style={g(160)}>
+            <KpiCard label="Open Cases"            value={d.open_cases}                icon="📂" color={C.cyan} />
+            <KpiCard label="Closed Cases"          value={d.closed_cases}              icon="✅" color={C.green} />
+            <KpiCard label="Bad Debt Cases"        value={d.bad_debt_cases}            icon="🚫" color={C.error} />
+            <KpiCard label="Recovery Rate"         value={`${d.recovery_rate}%`}       icon="🎯" color={C.success} sub="closed cases fully recovered" />
+            <KpiCard label="Effective Yield"       value={`${d.effective_yield}%`}     icon="📊" color={C.primary} sub="interest / principal (closed)" />
+            <KpiCard label="Collection Efficiency" value={`${d.collection_efficiency}%`} icon="⚡" color={C.violet} sub="received / (received + outstanding)" />
           </div>
 
-          {/* ── SECTION 3: Year bar + Status donut ── */}
-          <div style={row(300)}>
+          {/* Year bar + status donut */}
+          <div style={g(300)}>
             <ChartBox title="💰 Money Lent by Year">
-              {d.lending_by_year.length === 0 ? <div style={{ color: C.faint, textAlign: 'center', padding: 40 }}>No data</div> : (
-                <BarChart
-                  labels={d.lending_by_year.map(r => r.year)}
-                  datasets={[{
-                    label: 'Amount Lent',
-                    data: d.lending_by_year.map(r => r.amount),
-                    backgroundColor: C.primary + 'CC', borderRadius: 6,
-                  }]}
-                  yFmt={fmtAxis}
-                  height={240}
-                />
-              )}
+              {d.lending_by_year.length === 0
+                ? <div style={{ color: C.faint, textAlign: 'center', padding: 40 }}>No dated records</div>
+                : <BarChart
+                    labels={d.lending_by_year.map(r => r.year)}
+                    datasets={[{ label: 'Amount Lent', data: d.lending_by_year.map(r => r.amount), backgroundColor: C.primary + 'CC', borderRadius: 6 }]}
+                    yFmt={fmtAxis} height={240} />
+              }
             </ChartBox>
             <ChartBox title="📊 Case Status Breakdown">
               <DoughnutChart
                 labels={['Open', 'Closed', 'Bad Debt']}
                 data={[d.open_cases, d.closed_cases, d.bad_debt_cases]}
-                colors={[C.cyan, C.success, C.amber]}
-                height={240}
+                colors={[C.cyan, C.success, C.amber]} height={200}
               />
               <div style={{ display: 'flex', justifyContent: 'space-around', marginTop: 14 }}>
                 {[['Open', d.open_cases, C.cyan], ['Closed', d.closed_cases, C.success], ['Bad Debt', d.bad_debt_cases, C.amber]].map(([l, v, col]) => (
                   <div key={l} style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 20, fontWeight: 800, color: col }}>{v}</div>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: col }}>{v}</div>
                     <div style={{ fontSize: 11, color: C.faint }}>{l}</div>
                   </div>
                 ))}
@@ -1052,118 +1372,99 @@
             </ChartBox>
           </div>
 
-          {/* ── SECTION 4: Monthly trend line + Metal donut ── */}
-          <div style={row(300)}>
+          {/* Monthly line + metal donut */}
+          <div style={g(300)}>
             <ChartBox title="📅 Monthly Trend — Last 12 Months">
-              <LineChart
-                labels={monthLabels}
+              <LineChart labels={mLabels}
                 datasets={[
-                  {
-                    label: 'Money Lent',
-                    data: d.monthly_trend.map(r => r.lent),
-                    borderColor: C.primary, backgroundColor: C.primary + '25', fill: true, tension: 0.4,
-                  },
-                  {
-                    label: 'Amount Recovered',
-                    data: d.monthly_trend.map(r => r.recovered),
-                    borderColor: C.success, backgroundColor: C.success + '25', fill: true, tension: 0.4,
-                  },
+                  { label: 'Money Lent',      data: d.monthly_trend.map(r => r.lent),      borderColor: C.primary, backgroundColor: C.primary + '28', fill: true },
+                  { label: 'Amount Received', data: d.monthly_trend.map(r => r.recovered), borderColor: C.success, backgroundColor: C.success + '28', fill: true },
                 ]}
-                yFmt={fmtAxis}
-                height={240}
-              />
+                yFmt={fmtAxis} height={240} />
             </ChartBox>
             <ChartBox title="🥇 Metal Distribution (by cases)">
-              {d.metal_breakdown.length === 0 ? <div style={{ color: C.faint, textAlign: 'center', padding: 40 }}>No data</div> : (
-                <DoughnutChart
-                  labels={d.metal_breakdown.map(r => r.metal)}
-                  data={d.metal_breakdown.map(r => r.cases)}
-                  colors={CHART_PALETTE}
-                  height={240}
-                />
-              )}
+              {d.metal_breakdown.length === 0
+                ? <div style={{ color: C.faint, textAlign: 'center', padding: 40 }}>No data</div>
+                : <DoughnutChart labels={d.metal_breakdown.map(r => r.metal)} data={d.metal_breakdown.map(r => r.cases)} colors={CHART_PALETTE} height={240} />
+              }
             </ChartBox>
           </div>
 
-          {/* ── SECTION 5: Case age + Top borrowers ── */}
-          <div style={row(300)}>
+          {/* Age buckets + top borrowers */}
+          <div style={g(280)}>
             <ChartBox title="⏱️ Open Case Age Distribution">
               <BarChart
                 labels={['0–3 months', '3–6 months', '6–12 months', '12+ months']}
-                datasets={[{
-                  label: 'Open Cases',
-                  data: [d.case_age_buckets['0_3'], d.case_age_buckets['3_6'], d.case_age_buckets['6_12'], d.case_age_buckets['12_plus']],
-                  backgroundColor: [C.success + 'CC', C.cyan + 'CC', C.amber + 'CC', C.error + 'CC'],
-                  borderRadius: 6,
-                }]}
-                height={220}
-              />
+                datasets={[{ label: 'Cases', data: [d.case_age_buckets['0_3'], d.case_age_buckets['3_6'], d.case_age_buckets['6_12'], d.case_age_buckets['12_plus']],
+                  backgroundColor: [C.success + 'CC', C.cyan + 'CC', C.amber + 'CC', C.error + 'CC'], borderRadius: 6 }]}
+                height={220} />
             </ChartBox>
-            <ChartBox title="👥 Top 5 Borrowers by Amount Lent">
-              {d.top_borrowers.length === 0 ? <div style={{ color: C.faint, textAlign: 'center', padding: 40 }}>No data</div> : (
-                <BarChart
-                  labels={d.top_borrowers.map(r => r.name.length > 14 ? r.name.slice(0, 14) + '…' : r.name)}
-                  datasets={[{
-                    label: 'Amount Lent',
-                    data: d.top_borrowers.map(r => r.total_lent),
-                    backgroundColor: CHART_PALETTE.slice(0, d.top_borrowers.length).map(c => c + 'CC'),
-                    borderRadius: 6,
-                  }]}
-                  yFmt={fmtAxis}
-                  height={220}
-                />
-              )}
+            <ChartBox title="👥 Top 5 Borrowers by Amount">
+              {d.top_borrowers.length === 0
+                ? <div style={{ color: C.faint, textAlign: 'center', padding: 40 }}>No data</div>
+                : <BarChart
+                    labels={d.top_borrowers.map(r => r.name.length > 14 ? r.name.slice(0,14)+'…' : r.name)}
+                    datasets={[{ label: 'Amount Lent', data: d.top_borrowers.map(r => r.total_lent),
+                      backgroundColor: CHART_PALETTE.slice(0, d.top_borrowers.length).map(c => c + 'CC'), borderRadius: 6 }]}
+                    yFmt={fmtAxis} height={220} />
+              }
             </ChartBox>
           </div>
 
-          {/* ── SECTION 6: Extra stats chips ── */}
-          <div style={{ marginBottom: 8 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 12 }}>📐 Additional Insights</div>
-          </div>
-          <div style={row(160)}>
+          {/* Monthly cases opened vs closed */}
+          <ChartBox title="📆 Monthly Cases — Opened vs Closed (Last 12 Months)" style={{ marginBottom: 16 }}>
+            <BarChart labels={mLabels}
+              datasets={[
+                { label: 'Cases Opened', data: d.monthly_trend.map(r => r.opened),       backgroundColor: C.primary + 'BB', borderRadius: 4 },
+                { label: 'Cases Closed', data: d.monthly_trend.map(r => r.closed_count), backgroundColor: C.success + 'BB', borderRadius: 4 },
+              ]}
+              height={200} />
+          </ChartBox>
+
+          {/* Extra stats chips */}
+          {secHead('📐 Additional Insights')}
+          <div style={g(155)}>
             <StatChip label="Total Cases"       value={d.total_cases}                  color={C.primary} />
             <StatChip label="Avg Loan Amount"   value={fmtCompact(d.avg_loan_amount)}  color={C.cyan} />
-            <StatChip label="Avg Duration"      value={`${d.avg_duration_days} days`}  sub="closed cases only" color={C.green} />
+            <StatChip label="Avg Duration"      value={`${d.avg_duration_days} days`}  sub="closed cases"    color={C.green} />
             <StatChip label="Avg Interest / Case" value={fmtCompact(d.avg_interest_per_case)} sub="closed cases" color={C.violet} />
-            <StatChip label="Repeat Borrowers"  value={d.repeat_borrowers}             sub="same name, multiple cases" color={C.amber} />
+            <StatChip label="Repeat Borrowers"  value={d.repeat_borrowers}             sub="same name, 2+ cases"   color={C.amber} />
             <StatChip label="Bad Debt Rate"     value={`${d.bad_debt_rate_cases}%`}    sub={`${d.bad_debt_rate_amount}% of ₹ lent`} color={C.error} />
-            <StatChip label="Weight Held"       value={d.total_weight_open > 0 ? `${d.total_weight_open}g` : '—'} sub="open cases" color={C.amber} />
-            <StatChip label="Avg Rate Charged"  value={(() => {
-              const rates = [];
-              // computed from backend data not directly, show a note
-              return d.avg_interest_per_case && d.avg_loan_amount
+            <StatChip label="Items Weight Held" value={d.total_weight_open > 0 ? `${d.total_weight_open}g` : '—'} sub="open cases"    color={C.amber} />
+            <StatChip label="Avg Yield / Loan"
+              value={d.avg_interest_per_case && d.avg_loan_amount
                 ? `${((d.avg_interest_per_case / d.avg_loan_amount) * 100).toFixed(1)}%`
-                : '—';
-            })()} sub="avg interest / avg loan" color={C.cyan} />
+                : '—'}
+              sub="avg interest / avg loan" color={C.cyan} />
           </div>
 
-          {/* ── SECTION 7: Notable cases ── */}
-          <div style={row(280)}>
+          {/* Notable + oldest */}
+          <div style={g(280)}>
             <ChartBox title="🏆 Notable Cases">
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {d.highest_case && (
-                  <div style={{ background: C.successLight, borderRadius: 10, padding: '12px 16px', border: `1px solid ${C.success}30` }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: C.success, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>🏅 Highest Amount Case</div>
-                    <div style={{ fontWeight: 700, fontSize: 16, color: C.text }}>₹{Number(d.highest_case.money_lent).toLocaleString('en-IN')}</div>
+                  <div style={{ background: C.successLight, borderRadius: 10, padding: '14px 16px', border: `1px solid ${C.successBorder}` }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: C.success, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>🏅 Highest Amount Case</div>
+                    <div style={{ fontWeight: 800, fontSize: 18, color: C.text }}>₹{Number(d.highest_case.money_lent).toLocaleString('en-IN')}</div>
                     <div style={{ fontSize: 13, color: C.muted, marginTop: 3 }}>Case #{d.highest_case.id} — {d.highest_case.name}</div>
-                    <StatusBadge status={d.highest_case.status} style={{ marginTop: 6, display: 'inline-block' }} />
+                    <div style={{ marginTop: 6 }}><StatusBadge status={d.highest_case.status} /></div>
                   </div>
                 )}
                 {d.lowest_case && (
-                  <div style={{ background: C.primaryLight, borderRadius: 10, padding: '12px 16px', border: `1px solid ${C.primary}30` }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: C.primary, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>🎯 Lowest Amount Case</div>
-                    <div style={{ fontWeight: 700, fontSize: 16, color: C.text }}>₹{Number(d.lowest_case.money_lent).toLocaleString('en-IN')}</div>
+                  <div style={{ background: C.primaryLight, borderRadius: 10, padding: '14px 16px', border: `1px solid ${C.primary}30` }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: C.primary, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>🎯 Lowest Amount Case</div>
+                    <div style={{ fontWeight: 800, fontSize: 18, color: C.text }}>₹{Number(d.lowest_case.money_lent).toLocaleString('en-IN')}</div>
                     <div style={{ fontSize: 13, color: C.muted, marginTop: 3 }}>Case #{d.lowest_case.id} — {d.lowest_case.name}</div>
-                    <StatusBadge status={d.lowest_case.status} style={{ marginTop: 6, display: 'inline-block' }} />
+                    <div style={{ marginTop: 6 }}><StatusBadge status={d.lowest_case.status} /></div>
                   </div>
                 )}
                 {d.weight_by_metal && d.weight_by_metal.length > 0 && (
-                  <div style={{ background: C.amberLight, borderRadius: 10, padding: '12px 16px', border: `1px solid ${C.amber}30` }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: C.amber, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>⚖️ Items Currently Held (open cases)</div>
+                  <div style={{ background: C.amberLight, borderRadius: 10, padding: '14px 16px', border: `1px solid ${C.amberBorder}` }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: C.amber, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>⚖️ Items Held (open cases)</div>
                     {d.weight_by_metal.map(r => (
-                      <div key={r.metal} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: C.text, marginTop: 4 }}>
-                        <span>{r.metal}</span>
-                        <span style={{ fontWeight: 600 }}>{r.weight}g</span>
+                      <div key={r.metal} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: C.text, marginTop: 5 }}>
+                        <span style={{ color: C.muted }}>{r.metal}</span>
+                        <span style={{ fontWeight: 700 }}>{r.weight}g</span>
                       </div>
                     ))}
                   </div>
@@ -1171,45 +1472,33 @@
               </div>
             </ChartBox>
 
-            {/* ── Oldest open cases table ── */}
             <ChartBox title="🕰️ Oldest Open Cases">
-              {d.oldest_open_cases.length === 0 ? (
-                <div style={{ color: C.faint, textAlign: 'center', padding: 30 }}>No open cases</div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {d.oldest_open_cases.map((c, i) => (
-                    <div key={c.id} style={{
-                      background: i === 0 ? C.errorLight : C.bg, borderRadius: 10, padding: '12px 14px',
-                      border: `1px solid ${i === 0 ? '#FECACA' : C.border}`,
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                        <span style={{ fontWeight: 700, fontSize: 13, color: C.text }}>{c.name}</span>
-                        <span style={{ fontSize: 11, color: i === 0 ? C.error : C.faint, fontWeight: 600 }}>
-                          {c.days_open} days old
-                        </span>
+              {d.oldest_open_cases.length === 0
+                ? <div style={{ color: C.faint, textAlign: 'center', padding: 30 }}>No open cases</div>
+                : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {d.oldest_open_cases.map((c, i) => (
+                      <div key={c.id} style={{
+                        background: i === 0 ? C.errorLight : C.bg,
+                        borderRadius: 10, padding: '12px 14px',
+                        border: `1px solid ${i === 0 ? C.errorBorder : C.border}`,
+                        transition: 'background-color 0.3s',
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                          <span style={{ fontWeight: 700, fontSize: 13, color: C.text }}>{c.name}</span>
+                          <span style={{ fontSize: 11, color: i === 0 ? C.error : C.faint, fontWeight: 600 }}>{c.days_open}d old</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: C.muted }}>
+                          <span>#{c.id} · {c.loan_date}</span>
+                          <span style={{ fontWeight: 600, color: C.text }}>Due: ₹{Number(c.total_due).toLocaleString('en-IN')}</span>
+                        </div>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: C.muted }}>
-                        <span>#{c.id} · {c.loan_date}</span>
-                        <span style={{ fontWeight: 600, color: C.text }}>Total due: ₹{Number(c.total_due).toLocaleString('en-IN')}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+                    ))}
+                  </div>
+                )
+              }
             </ChartBox>
           </div>
-
-          {/* ── SECTION 8: Monthly cases opened vs closed bar ── */}
-          <ChartBox title="📆 Monthly Cases — Opened vs Closed (Last 12 Months)" style={{ marginBottom: 16 }}>
-            <BarChart
-              labels={monthLabels}
-              datasets={[
-                { label: 'Cases Opened',  data: d.monthly_trend.map(r => r.opened),       backgroundColor: C.primary + 'BB', borderRadius: 4 },
-                { label: 'Cases Closed',  data: d.monthly_trend.map(r => r.closed_count), backgroundColor: C.success + 'BB', borderRadius: 4 },
-              ]}
-              height={200}
-            />
-          </ChartBox>
 
         </div>
       </div>
@@ -1222,6 +1511,29 @@
     const [auth, setAuth] = useState(null);
     const [page, setPage] = useState('home');
 
+    // Persist theme in localStorage
+    const [dark, setDark] = useState(() => {
+      try { return localStorage.getItem('loantrack-theme') === 'dark'; } catch { return false; }
+    });
+
+    const toggle = () => {
+      setDark(d => {
+        const next = !d;
+        try { localStorage.setItem('loantrack-theme', next ? 'dark' : 'light'); } catch {}
+        return next;
+      });
+    };
+
+    // Keep <html> data-theme in sync for CSS variables
+    useEffect(() => {
+      document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    }, [dark]);
+
+    // Set initial theme attribute on mount
+    useEffect(() => {
+      document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    }, []);
+
     useEffect(() => {
       api.get('/api/check-auth')
         .then(d => setAuth(d.authenticated))
@@ -1233,19 +1545,24 @@
       setAuth(false); setPage('home');
     };
 
+    const C = dark ? DARK : LIGHT;
+
     if (auth === null) return (
       <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.faint }}>
         Loading…
       </div>
     );
 
-    if (!auth) return <LoginPage onLogin={() => setAuth(true)} />;
-
-    if (page === 'add')       return <AddCasePage onBack={() => setPage('home')} isExisting={false} />;
-    if (page === 'existing')  return <AddCasePage onBack={() => setPage('home')} isExisting={true}  />;
-    if (page === 'view')      return <ViewCasesPage onBack={() => setPage('home')} />;
-    if (page === 'dashboard') return <DashboardPage onBack={() => setPage('home')} />;
-    return <HomePage onNavigate={setPage} onLogout={logout} />;
+    return (
+      <ThemeCtx.Provider value={{ C, dark, toggle }}>
+        {!auth && <LoginPage onLogin={() => setAuth(true)} />}
+        {auth && page === 'home'      && <HomePage     onNavigate={setPage} onLogout={logout} />}
+        {auth && page === 'add'       && <AddCasePage  onBack={() => setPage('home')} isExisting={false} />}
+        {auth && page === 'existing'  && <AddCasePage  onBack={() => setPage('home')} isExisting={true}  />}
+        {auth && page === 'view'      && <ViewCasesPage onBack={() => setPage('home')} />}
+        {auth && page === 'dashboard' && <DashboardPage onBack={() => setPage('home')} />}
+      </ThemeCtx.Provider>
+    );
   }
 
   ReactDOM.createRoot(document.getElementById('root')).render(<App />);
