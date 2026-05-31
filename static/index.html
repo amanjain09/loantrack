@@ -197,7 +197,9 @@
   // Translate helper — falls back to English
   const tKey = (key, lang) => TR[key]?.[lang] ?? TR[key]?.en ?? key;
 
-  // Language selector component
+  // Language selector component — white arrow override for navbar dark bg
+  const WHITE_ARROW = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' d='M6 8L1 3h10z'/%3E%3C/svg%3E")`;
+
   function LangSelector() {
     const { lang, setLang } = useLang();
     return (
@@ -206,8 +208,11 @@
         onChange={e => setLang(e.target.value)}
         style={{
           background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.3)',
-          color: '#fff', borderRadius: 8, padding: '5px 10px', fontSize: 12.5,
-          cursor: 'pointer', outline: 'none', fontWeight: 600, maxWidth: 110,
+          color: '#fff', borderRadius: 8, padding: '5px 28px 5px 10px', fontSize: 12.5,
+          cursor: 'pointer', outline: 'none', fontWeight: 600, maxWidth: 120,
+          backgroundImage: WHITE_ARROW,
+          backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center',
+          appearance: 'none', WebkitAppearance: 'none',
         }}
       >
         {Object.entries(LANGS).map(([code, name]) => (
@@ -762,7 +767,7 @@
 
   // ──────────────────────────────────────────────────────────────────────────
 
-  function AddCasePage({ onBack, isExisting }) {
+  function AddCasePage({ onBack, isExisting, onLogout }) {
     const { C } = useTheme();
     const { t } = useLang();
     const blank = () => ({
@@ -799,7 +804,7 @@
 
     return (
       <div style={{ minHeight: '100vh', background: C.bg, transition: 'background-color 0.3s' }}>
-        <Navbar title={isExisting ? 'Add Existing Case' : 'Add New Case'} onBack={onBack} />
+        <Navbar title={isExisting ? 'Add Existing Case' : 'Add New Case'} onBack={onBack} onLogout={onLogout} />
         <div className="fade-in" style={{ padding: '28px 20px', maxWidth: 800, margin: '0 auto' }}>
           {isExisting && <div style={{ marginBottom: 16 }}><Alert type="info">📂 Entering an existing record — fill in the original loan date &amp; time manually.</Alert></div>}
           {success && (
@@ -1181,7 +1186,7 @@
 
   // ──────────────────────────────────────────────────────────────────────────
 
-  function ViewCasesPage({ onBack }) {
+  function ViewCasesPage({ onBack, onLogout }) {
     const { C, dark } = useTheme();
     const [cases, setCases]           = useState([]);
     const [loading, setLoading]       = useState(true);
@@ -1226,7 +1231,7 @@
 
     return (
       <div style={{ minHeight: '100vh', background: C.bg, transition: 'background-color 0.3s' }}>
-        <Navbar title="All Cases" onBack={onBack} />
+        <Navbar title="All Cases" onBack={onBack} onLogout={onLogout} />
         {selectedCase && (
           <CaseDetailModal
             caseId={selectedCase.id}
@@ -1333,7 +1338,7 @@
 
   // ── Dashboard ──────────────────────────────────────────────────────────────
 
-  function DashboardPage({ onBack }) {
+  function DashboardPage({ onBack, onLogout }) {
     const { C, dark } = useTheme();
     const [data, setData]       = useState(null);
     const [loading, setLoading] = useState(true);
@@ -1347,7 +1352,7 @@
 
     const spinnerPage = msg => (
       <div style={{ minHeight: '100vh', background: C.bg, transition: 'background-color 0.3s' }}>
-        <Navbar title="Dashboard & Analytics" onBack={onBack} />
+        <Navbar title="Dashboard & Analytics" onBack={onBack} onLogout={onLogout} />
         <div style={{ padding: 60, textAlign: 'center', color: C.faint }}>
           <div style={{ fontSize: 40, marginBottom: 16 }}>📊</div>
           <div>{msg}</div>
@@ -1358,7 +1363,7 @@
     if (loading) return spinnerPage('Crunching numbers…');
     if (error)   return (
       <div style={{ minHeight: '100vh', background: C.bg }}>
-        <Navbar title="Dashboard & Analytics" onBack={onBack} />
+        <Navbar title="Dashboard & Analytics" onBack={onBack} onLogout={onLogout} />
         <div style={{ padding: 40 }}><Alert type="error">{error}</Alert></div>
       </div>
     );
@@ -1373,7 +1378,7 @@
 
     return (
       <div style={{ minHeight: '100vh', background: C.bg, transition: 'background-color 0.3s' }}>
-        <Navbar title="Dashboard & Analytics" onBack={onBack} />
+        <Navbar title="Dashboard & Analytics" onBack={onBack} onLogout={onLogout} />
         <div className="fade-in" style={{ padding: '28px 20px', maxWidth: 1200, margin: '0 auto' }}>
 
           {secHead('💰 Portfolio Overview')}
@@ -1619,10 +1624,10 @@
       <ThemeCtx.Provider value={{ C, dark, toggle }}>
         {!auth && <LoginPage onLogin={() => setAuth(true)} />}
         {auth && page === 'home'      && <HomePage     onNavigate={setPage} onLogout={logout} />}
-        {auth && page === 'add'       && <AddCasePage  onBack={() => setPage('home')} isExisting={false} />}
-        {auth && page === 'existing'  && <AddCasePage  onBack={() => setPage('home')} isExisting={true}  />}
-        {auth && page === 'view'      && <ViewCasesPage onBack={() => setPage('home')} />}
-        {auth && page === 'dashboard' && <DashboardPage onBack={() => setPage('home')} />}
+        {auth && page === 'add'       && <AddCasePage  onBack={() => setPage('home')} isExisting={false} onLogout={logout} />}
+        {auth && page === 'existing'  && <AddCasePage  onBack={() => setPage('home')} isExisting={true}  onLogout={logout} />}
+        {auth && page === 'view'      && <ViewCasesPage onBack={() => setPage('home')} onLogout={logout} />}
+        {auth && page === 'dashboard' && <DashboardPage onBack={() => setPage('home')} onLogout={logout} />}
       </ThemeCtx.Provider>
       </LangCtx.Provider>
     );
