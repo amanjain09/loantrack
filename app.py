@@ -2,7 +2,7 @@
 LoanTrack — Prabhu Ventures SaaS backend.
 
 Architecture:
-  - Roles: super_admin, admin, user (lender / tenant)
+  - Roles: admin (platform owner), user (lender / tenant)
   - Multi-tenant: every case scoped to its owning lender (user_id)
   - Subscriptions: trial (7 d) → active → grace → expired
   - Payments: provider-agnostic (ManualProvider works; Razorpay/Stripe/PayU stubbed)
@@ -43,10 +43,8 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "lending.db")
 FOUNDER_PHONE         = os.environ.get("FOUNDER_PHONE", "9479913772")
 FOUNDER_NAME          = os.environ.get("FOUNDER_NAME",  "Aman")
 FOUNDER_OTP           = os.environ.get("FOUNDER_OTP", "947200")  # bypass for FOUNDER_PHONE only
-SUPER_ADMIN_USER      = os.environ.get("SUPER_ADMIN_USER",     "admin")
-SUPER_ADMIN_PASSWORD  = os.environ.get("SUPER_ADMIN_PASSWORD", "admin123")
-DEFAULT_ADMIN_USER    = os.environ.get("DEFAULT_ADMIN_USER",     "manager")
-DEFAULT_ADMIN_PASS    = os.environ.get("DEFAULT_ADMIN_PASS",     "manager123")
+ADMIN_USERNAME        = os.environ.get("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD        = os.environ.get("ADMIN_PASSWORD", "admin123")
 
 
 def get_db():
@@ -564,19 +562,17 @@ def seed_data():
                 "INSERT INTO plans (code, name, price_inr, duration_days, is_trial, active) VALUES (?, ?, ?, ?, ?, ?)",
                 (code, name, price, days, is_trial, TRUE_VAL))
 
-    # 2) Super-admin
-    cur = db_execute(conn, "SELECT id FROM users WHERE username = ?", (SUPER_ADMIN_USER,))
-    if not cur.fetchone():
-        db_execute(conn,
-            "INSERT INTO users (name, username, password_hash, role, status) VALUES (?, ?, ?, ?, ?)",
-            ("Super Admin", SUPER_ADMIN_USER, generate_password_hash(SUPER_ADMIN_PASSWORD, method='pbkdf2:sha256'), "super_admin", "active"))
+    # 2) Sole admin account (admin/admin123 by default)
+    # Migrate any pre-existing super_admin → admin so they keep working
+    db_execute(conn, "UPDATE users SET role = 'admin' WHERE role = 'super_admin'")
+    # Remove legacy seeded "manager" admin (no-op if already deleted or never created)
+    db_execute(conn, "DELETE FROM users WHERE username = 'manager' AND role = 'admin'")
 
-    # 3) Demo admin
-    cur = db_execute(conn, "SELECT id FROM users WHERE username = ?", (DEFAULT_ADMIN_USER,))
+    cur = db_execute(conn, "SELECT id FROM users WHERE username = ?", (ADMIN_USERNAME,))
     if not cur.fetchone():
         db_execute(conn,
             "INSERT INTO users (name, username, password_hash, role, status) VALUES (?, ?, ?, ?, ?)",
-            ("Demo Admin", DEFAULT_ADMIN_USER, generate_password_hash(DEFAULT_ADMIN_PASS, method='pbkdf2:sha256'), "admin", "active"))
+            ("Admin", ADMIN_USERNAME, generate_password_hash(ADMIN_PASSWORD, method='pbkdf2:sha256'), "admin", "active"))
 
     # 4) Founding lender (tenant) — and migrate orphan cases under them
     # If an old founder row exists with the legacy placeholder phone, update it.
@@ -651,7 +647,7 @@ def require_active_subscription(fn):
         if not u:
             return jsonify({"error": "Unauthorized"}), 401
         # Admins & super admins bypass
-        if u["role"] in ("admin", "super_admin"):
+        if u["role"] == "admin":
             return fn(*args, **kwargs)
         sub = get_active_subscription(u["id"])
         if not sub or not sub["active"]:
@@ -857,7 +853,7 @@ def request_access():
 
 
 @app.route("/api/leads", methods=["GET"])
-@require_auth(roles=["admin", "super_admin"])
+@require_auth(roles=["admin"])
 def get_leads(_user):
     conn = get_db()
     cur  = db_execute(conn, "SELECT * FROM leads ORDER BY id DESC")
@@ -870,7 +866,7 @@ def get_leads(_user):
 # Cases (tenant-scoped)
 # ──────────────────────────────────────────────────────────────────────────────
 @app.route("/api/cases", methods=["POST"])
-@require_auth(roles=["user", "super_admin"])
+@require_auth(roles=["user", "admin"])
 @require_active_subscription
 def add_case(_user):
     data = request.get_json() or {}
@@ -926,7 +922,7 @@ def add_case(_user):
 
 
 @app.route("/api/cases", methods=["GET"])
-@require_auth(roles=["user", "super_admin"])
+@require_auth(roles=["user", "admin"])
 @require_active_subscription
 def get_cases(_user):
     q         = request.args.get("q",         "").strip()
@@ -940,7 +936,7 @@ def get_cases(_user):
 
     sql    = f"SELECT {_LIST_COLS} FROM cases WHERE 1=1"
     params = []
-    # Tenant scoping (super_admin can pass ?tenant=ID; defaults to all)
+    # Tenant scoping (admin can pass ?tenant=ID; defaults to all)
     if _user["role"] == "user":
         sql += " AND user_id = ?"; params.append(_user["id"])
     else:
@@ -971,7 +967,7 @@ def get_cases(_user):
 
 
 @app.route("/api/cases/<int:case_id>", methods=["GET"])
-@require_auth(roles=["user", "super_admin"])
+@require_auth(roles=["user", "admin"])
 @require_active_subscription
 def get_case(_user, case_id):
     conn = get_db()
@@ -987,7 +983,7 @@ def get_case(_user, case_id):
 
 
 @app.route("/api/cases/<int:case_id>/close", methods=["POST"])
-@require_auth(roles=["user", "super_admin"])
+@require_auth(roles=["user", "admin"])
 @require_active_subscription
 def close_case(_user, case_id):
     data            = request.get_json() or {}
@@ -1016,7 +1012,7 @@ def close_case(_user, case_id):
 
 
 @app.route("/api/cases/<int:case_id>/bad-debt", methods=["POST"])
-@require_auth(roles=["user", "super_admin"])
+@require_auth(roles=["user", "admin"])
 @require_active_subscription
 def mark_bad_debt(_user, case_id):
     conn = get_db()
@@ -1043,7 +1039,7 @@ def mark_bad_debt(_user, case_id):
 # Dashboard (tenant-scoped)
 # ──────────────────────────────────────────────────────────────────────────────
 @app.route("/api/dashboard", methods=["GET"])
-@require_auth(roles=["user", "super_admin"])
+@require_auth(roles=["user", "admin"])
 @require_active_subscription
 def get_dashboard(_user):
     today = date_type.today()
@@ -1361,7 +1357,7 @@ def verify_payment_route(_user):
 
 
 @app.route("/api/billing/manual-payment", methods=["POST"])
-@require_auth(roles=["admin", "super_admin"])
+@require_auth(roles=["admin"])
 def manual_payment(_user):
     """Admin records an offline payment for a user."""
     data = request.get_json() or {}
@@ -1415,7 +1411,7 @@ def manual_payment(_user):
 # Admin endpoints
 # ──────────────────────────────────────────────────────────────────────────────
 @app.route("/api/admin/users", methods=["GET"])
-@require_auth(roles=["admin", "super_admin"])
+@require_auth(roles=["admin"])
 def admin_list_users(_user):
     role = request.args.get("role", "").strip()
     conn = get_db()
@@ -1437,7 +1433,7 @@ def admin_list_users(_user):
 
 
 @app.route("/api/admin/users/<int:uid>/suspend", methods=["POST"])
-@require_auth(roles=["admin", "super_admin"])
+@require_auth(roles=["admin"])
 def admin_suspend_user(_user, uid):
     conn = get_db()
     db_execute(conn, "UPDATE users SET status = 'suspended' WHERE id = ? AND role = 'user'", (uid,))
@@ -1447,7 +1443,7 @@ def admin_suspend_user(_user, uid):
 
 
 @app.route("/api/admin/users/<int:uid>/activate", methods=["POST"])
-@require_auth(roles=["admin", "super_admin"])
+@require_auth(roles=["admin"])
 def admin_activate_user(_user, uid):
     conn = get_db()
     db_execute(conn, "UPDATE users SET status = 'active' WHERE id = ? AND role = 'user'", (uid,))
@@ -1457,7 +1453,7 @@ def admin_activate_user(_user, uid):
 
 
 @app.route("/api/admin/create-admin", methods=["POST"])
-@require_auth(roles=["super_admin"])
+@require_auth(roles=["admin"])
 def super_create_admin(_user):
     data = request.get_json() or {}
     name = (data.get("name") or "").strip()
@@ -1479,7 +1475,7 @@ def super_create_admin(_user):
 
 
 @app.route("/api/admin/audit", methods=["GET"])
-@require_auth(roles=["admin", "super_admin"])
+@require_auth(roles=["admin"])
 def admin_audit(_user):
     conn = get_db()
     cur  = db_execute(conn, "SELECT * FROM audit_log ORDER BY id DESC LIMIT 500")
@@ -1489,7 +1485,7 @@ def admin_audit(_user):
 
 
 @app.route("/api/admin/payments", methods=["GET"])
-@require_auth(roles=["admin", "super_admin"])
+@require_auth(roles=["admin"])
 def admin_payments(_user):
     conn = get_db()
     cur  = db_execute(conn,
@@ -1501,7 +1497,7 @@ def admin_payments(_user):
 
 
 @app.route("/api/admin/plans", methods=["GET", "POST"])
-@require_auth(roles=["super_admin"])
+@require_auth(roles=["admin"])
 def admin_plans(_user):
     conn = get_db()
     if request.method == "POST":
@@ -1533,7 +1529,7 @@ def admin_plans(_user):
 
 
 @app.route("/api/admin/users/<int:uid>", methods=["PUT"])
-@require_auth(roles=["admin", "super_admin"])
+@require_auth(roles=["admin"])
 def admin_update_user(_user, uid):
     """Edit a user's name / phone / email / username. Admin can only edit role=user."""
     data = request.get_json() or {}
@@ -1572,7 +1568,7 @@ def admin_update_user(_user, uid):
 
 
 @app.route("/api/admin/subscription/<int:user_id>/extend", methods=["POST"])
-@require_auth(roles=["admin", "super_admin"])
+@require_auth(roles=["admin"])
 def admin_extend_sub(_user, user_id):
     """Manually extend / adjust a tenant's subscription expiry by N days."""
     data = request.get_json() or {}
@@ -1600,19 +1596,19 @@ def admin_extend_sub(_user, user_id):
 
 
 @app.route("/api/admin/admins", methods=["GET"])
-@require_auth(roles=["super_admin"])
+@require_auth(roles=["admin"])
 def admin_list_admins(_user):
     conn = get_db()
     cur  = db_execute(conn,
         "SELECT id, name, username, email, role, status, created_at FROM users "
-        "WHERE role IN ('admin','super_admin') ORDER BY id ASC")
+        "WHERE role = 'admin' ORDER BY id ASC")
     rows = [dict(r) for r in cur.fetchall()]
     conn.close()
     return jsonify(rows)
 
 
 @app.route("/api/admin/charts", methods=["GET"])
-@require_auth(roles=["admin", "super_admin"])
+@require_auth(roles=["admin"])
 def admin_charts(_user):
     """Aggregated analytics for admin/super-admin overview dashboard."""
     today = date_type.today()
@@ -1680,7 +1676,7 @@ def admin_charts(_user):
 
 
 @app.route("/api/admin/stats", methods=["GET"])
-@require_auth(roles=["admin", "super_admin"])
+@require_auth(roles=["admin"])
 def admin_stats(_user):
     conn = get_db()
     def n(sql, params=()):
@@ -1717,8 +1713,7 @@ if __name__ == "__main__":
     print("\n" + "=" * 60)
     print("  🏦  LoanTrack — Prabhu Ventures SaaS")
     print("  👉  http://localhost:8080")
-    print(f"  🔑  Super admin: {SUPER_ADMIN_USER} / {SUPER_ADMIN_PASSWORD}")
-    print(f"  🛡   Admin:        {DEFAULT_ADMIN_USER} / {DEFAULT_ADMIN_PASS}")
+    print(f"  🔑  Admin: {ADMIN_USERNAME} / {ADMIN_PASSWORD}")
     print(f"  📱  Founder phone: {FOUNDER_PHONE}  (use OTP login)")
     print(f"  💳  Payment provider: {get_payment_provider().name}")
     print(f"  📩  SMS provider:     {get_sms_provider().__class__.__name__}")

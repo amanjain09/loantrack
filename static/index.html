@@ -1273,7 +1273,6 @@
   // ── Admin Console (Phase 2) ───────────────────────────────────────────────
   function AdminConsole({ user, onLogout }) {
     const { C, dark } = useTheme();
-    const isSuper = user.role === 'super_admin';
     const [tab, setTab]         = useState('overview');
     const [users, setUsers]     = useState([]);
     const [admins, setAdmins]   = useState([]);
@@ -1301,13 +1300,10 @@
           api.get('/api/admin/audit'),
           api.get('/api/admin/plans').catch(() => api.get('/api/billing/plans')),
         ];
-        const [u, l, p, s, ch, au, pl] = await Promise.all(baseReqs);
-        setUsers(u); setLeads(l); setPays(p); setStats(s); setCharts(ch); setAudit(au); setPlans(pl);
-        if (isSuper) {
-          const a = await api.get('/api/admin/admins'); setAdmins(a);
-        }
+        const [u, l, p, s, ch, au, pl, a] = await Promise.all([...baseReqs, api.get('/api/admin/admins')]);
+        setUsers(u); setLeads(l); setPays(p); setStats(s); setCharts(ch); setAudit(au); setPlans(pl); setAdmins(a);
       } catch (e) { setError(e.message); }
-    }, [isSuper]);
+    }, []);
     useEffect(() => { load(); }, [load]);
 
     const toggleUser = async (u) => {
@@ -1351,7 +1347,7 @@
 
     return (
       <div style={{ minHeight: '100vh', background: C.bg }}>
-        <Navbar title={isSuper ? 'Super Admin Console' : 'Admin Console'} onLogout={onLogout} />
+        <Navbar title="Admin Console" onLogout={onLogout} />
         {editingLender && <LenderEditModal u={editingLender} onClose={() => setEL(null)} onSaved={load} />}
         {editingPlan && <PlanEditModal p={editingPlan.plan} onClose={() => setEP(null)} onSaved={load} />}
         {creatingAdmin && <AdminCreateModal onClose={() => setCA(false)} onSaved={load} />}
@@ -1377,8 +1373,8 @@
           <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
             {tabBtn('overview', '📊 Overview')}
             {tabBtn('users',    '👥 Lenders')}
-            {isSuper && tabBtn('admins',  '🛡 Admins')}
-            {isSuper && tabBtn('plans',   '💼 Plans')}
+            {tabBtn('admins',  '🛡 Admins')}
+            {tabBtn('plans',   '💼 Plans')}
             {tabBtn('leads',    '📩 Signup Requests')}
             {tabBtn('payments', '💳 Payments')}
             {tabBtn('audit',    '📜 Audit Log')}
@@ -1497,7 +1493,7 @@
           )}
 
           {/* ── ADMINS (super-admin only) ── */}
-          {tab === 'admins' && isSuper && (
+          {tab === 'admins' && (
             <>
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
                 <Btn onClick={() => setCA(true)}>+ New Admin</Btn>
@@ -1515,9 +1511,8 @@
                           <td>{a.email || '—'}</td>
                           <td>
                             <span style={{ padding:'2px 9px', borderRadius:14, fontSize:11, fontWeight:700,
-                              background: a.role === 'super_admin' ? C.violetLight : C.primaryLight,
-                              color: a.role === 'super_admin' ? C.violet : C.primary }}>
-                              {a.role.replace('_', ' ').toUpperCase()}
+                              background: C.primaryLight, color: C.primary }}>
+                              ADMIN
                             </span>
                           </td>
                           <td>
@@ -1536,7 +1531,7 @@
           )}
 
           {/* ── PLANS (super-admin only) ── */}
-          {tab === 'plans' && isSuper && (
+          {tab === 'plans' && (
             <>
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
                 <Btn onClick={() => setEP({ plan: null })}>+ New Plan</Btn>
@@ -2869,7 +2864,7 @@
     const user = me.user;
     const sub  = me.subscription;
     const isUser  = user?.role === 'user';
-    const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+    const isAdmin = user?.role === 'admin';
 
     // Force tenants to billing if their subscription expired
     const forceBilling = isUser && sub && !sub.active;
