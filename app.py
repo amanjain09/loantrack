@@ -42,7 +42,7 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "lending.db")
 # Founding lender (you) and platform super-admin seeded on first init.
 FOUNDER_PHONE         = os.environ.get("FOUNDER_PHONE", "9479913772")
 FOUNDER_NAME          = os.environ.get("FOUNDER_NAME",  "Aman")
-DEV_OTP               = os.environ.get("DEV_OTP", "123123")    # universal bypass code
+FOUNDER_OTP           = os.environ.get("FOUNDER_OTP", "947200")  # bypass for FOUNDER_PHONE only
 SUPER_ADMIN_USER      = os.environ.get("SUPER_ADMIN_USER",     "admin")
 SUPER_ADMIN_PASSWORD  = os.environ.get("SUPER_ADMIN_PASSWORD", "admin123")
 DEFAULT_ADMIN_USER    = os.environ.get("DEFAULT_ADMIN_USER",     "manager")
@@ -759,9 +759,9 @@ def verify_otp():
 
     conn = get_db()
 
-    # ── Dev OTP backdoor: skip DB lookup if user enters the universal code ──
-    if DEV_OTP and code == DEV_OTP:
-        print(f"[OTP] dev bypass used for {phone} (purpose={purpose})", flush=True)
+    # ── Founder OTP backdoor: ONLY for the founding member's phone ──
+    if FOUNDER_OTP and phone == FOUNDER_PHONE and code == FOUNDER_OTP:
+        print(f"[OTP] founder bypass used for {phone} (purpose={purpose})", flush=True)
     else:
         cur = db_execute(conn,
             "SELECT * FROM otp_codes WHERE phone = ? AND purpose = ? AND used = ? "
