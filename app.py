@@ -551,15 +551,17 @@ def seed_data():
     # 1) Plans (placeholder prices — super-admin can edit later)
     cur = db_execute(conn, "SELECT COUNT(*) AS n FROM plans")
     if cur.fetchone()["n"] == 0:
+        TRUE_VAL  = True  if USE_PG else 1
+        FALSE_VAL = False if USE_PG else 0
         for code, name, price, days, is_trial in [
-            ("trial",       "7-Day Free Trial",     0,    7,   1),
-            ("monthly",     "Monthly",              1,    30,  0),
-            ("half_yearly", "Half-Yearly (6 mo)",   1,    180, 0),
-            ("yearly",      "Yearly (12 mo)",       1,    365, 0),
+            ("trial",       "7-Day Free Trial",     0,    7,   TRUE_VAL),
+            ("monthly",     "Monthly",              1,    30,  FALSE_VAL),
+            ("half_yearly", "Half-Yearly (6 mo)",   1,    180, FALSE_VAL),
+            ("yearly",      "Yearly (12 mo)",       1,    365, FALSE_VAL),
         ]:
             db_execute(conn,
                 "INSERT INTO plans (code, name, price_inr, duration_days, is_trial, active) VALUES (?, ?, ?, ?, ?, ?)",
-                (code, name, price, days, is_trial, 1))
+                (code, name, price, days, is_trial, TRUE_VAL))
 
     # 2) Super-admin
     cur = db_execute(conn, "SELECT id FROM users WHERE username = ?", (SUPER_ADMIN_USER,))
@@ -1500,7 +1502,9 @@ def admin_plans(_user):
         data = request.get_json() or {}
         code = data.get("code"); name = data.get("name")
         price = data.get("price_inr"); days = data.get("duration_days")
-        active = 1 if data.get("active", True) else 0
+        TRUE_VAL  = True  if USE_PG else 1
+        FALSE_VAL = False if USE_PG else 0
+        active = TRUE_VAL if data.get("active", True) else FALSE_VAL
         if not (code and name and price is not None and days):
             conn.close()
             return jsonify({"error": "code, name, price_inr, duration_days required"}), 400
@@ -1512,7 +1516,7 @@ def admin_plans(_user):
         else:
             db_execute(conn,
                 "INSERT INTO plans (code, name, price_inr, duration_days, is_trial, active) VALUES (?, ?, ?, ?, ?, ?)",
-                (code, name, price, days, 0, active))
+                (code, name, price, days, FALSE_VAL, active))
         conn.commit()
         audit("plan_upsert", "plan", code, {"price": price, "days": days})
 
