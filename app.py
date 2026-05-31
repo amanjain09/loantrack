@@ -109,6 +109,17 @@ def init_db():
         ]:
             cur.execute(f"ALTER TABLE cases {col_def}")
         cur.execute("UPDATE cases SET status = 'open' WHERE status IS NULL")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS leads (
+                id         SERIAL PRIMARY KEY,
+                name       TEXT NOT NULL,
+                email      TEXT,
+                phone      TEXT,
+                company    TEXT,
+                message    TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         conn.commit()
         cur.close()
     else:
@@ -149,6 +160,17 @@ def init_db():
             except Exception:
                 pass
         conn.execute("UPDATE cases SET status = 'open' WHERE status IS NULL")
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS leads (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                name       TEXT NOT NULL,
+                email      TEXT,
+                phone      TEXT,
+                company    TEXT,
+                message    TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         conn.commit()
     conn.close()
 
@@ -173,6 +195,43 @@ def logout():
 @app.route("/api/check-auth")
 def check_auth():
     return jsonify({"authenticated": bool(session.get("logged_in"))})
+
+
+# ─── Public: request access (landing-page lead capture) ────────────────────────
+
+@app.route("/api/request-access", methods=["POST"])
+def request_access():
+    data    = request.get_json() or {}
+    name    = (data.get("name")    or "").strip()
+    email   = (data.get("email")   or "").strip()
+    phone   = (data.get("phone")   or "").strip()
+    company = (data.get("company") or "").strip()
+    message = (data.get("message") or "").strip()
+
+    if not name:
+        return jsonify({"error": "Please enter your name."}), 400
+    if not email and not phone:
+        return jsonify({"error": "Please provide an email or phone number."}), 400
+
+    conn = get_db()
+    db_execute(conn,
+        "INSERT INTO leads (name, email, phone, company, message) VALUES (?, ?, ?, ?, ?)",
+        (name, email or None, phone or None, company or None, message or None))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True}), 201
+
+
+@app.route("/api/leads", methods=["GET"])
+def get_leads():
+    """Admin-only — view captured access requests."""
+    if not session.get("logged_in"):
+        return jsonify({"error": "Unauthorized"}), 401
+    conn = get_db()
+    cur  = db_execute(conn, "SELECT * FROM leads ORDER BY id DESC")
+    rows = cur.fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
 
 
 # ─── Cases ─────────────────────────────────────────────────────────────────────
