@@ -1122,72 +1122,246 @@
   // ──────────────────────────────────────────────────────────────────────────
   // Admin Console
   // ──────────────────────────────────────────────────────────────────────────
+  // ── Generic modal shell (reused for edit forms) ────────────────────────────
+  function Modal({ title, onClose, children, maxWidth = 460 }) {
+    const { C } = useTheme();
+    return (
+      <div onClick={e => e.target === e.currentTarget && onClose()} style={{
+        position: 'fixed', inset: 0, background: C.modalOverlay, zIndex: 500,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+        backdropFilter: 'blur(4px)',
+      }}>
+        <div className="fade-in" style={{
+          background: C.card, borderRadius: 18, width: '100%', maxWidth,
+          maxHeight: '92vh', overflowY: 'auto', border: `1px solid ${C.border}`,
+          boxShadow: '0 28px 64px rgba(0,0,0,0.4)',
+        }}>
+          <div style={{
+            padding: '18px 22px', borderBottom: `1px solid ${C.border}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            position: 'sticky', top: 0, background: C.card, borderRadius: '18px 18px 0 0', zIndex: 2,
+          }}>
+            <span style={{ fontSize: 16, fontWeight: 800, color: C.text }}>{title}</span>
+            <button onClick={onClose} style={{
+              background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8,
+              width: 32, height: 32, cursor: 'pointer', color: C.muted, fontSize: 14,
+            }}>✕</button>
+          </div>
+          <div style={{ padding: '20px 22px' }}>{children}</div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Lender edit modal ──────────────────────────────────────────────────────
+  function LenderEditModal({ u, onClose, onSaved }) {
+    const [form, setForm]   = useState({ name: u.name || '', phone: u.phone || '', email: u.email || '' });
+    const [days, setDays]   = useState(0);
+    const [error, setError] = useState('');
+    const [busy, setBusy]   = useState('');
+    const sf = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
+
+    const save = async e => {
+      e.preventDefault(); setError(''); setBusy('save');
+      try { await api.req(`/api/admin/users/${u.id}`, { method:'PUT', body: JSON.stringify(form) }); onSaved(); onClose(); }
+      catch (err) { setError(err.message); } finally { setBusy(''); }
+    };
+    const extend = async () => {
+      if (!days) return; setError(''); setBusy('ext');
+      try { await api.post(`/api/admin/subscription/${u.id}/extend`, { days: parseInt(days) }); onSaved(); onClose(); }
+      catch (err) { setError(err.message); } finally { setBusy(''); }
+    };
+
+    return (
+      <Modal title={`Edit Lender #${u.id}`} onClose={onClose}>
+        <form onSubmit={save} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <Input label="Name"  required value={form.name}  onChange={sf('name')} />
+          <Input label="Phone" type="tel" value={form.phone} onChange={sf('phone')} placeholder="9876543210" />
+          <Input label="Email" type="email" value={form.email} onChange={sf('email')} placeholder="user@email.com" />
+          {error && <Alert type="error">{error}</Alert>}
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+            <Btn type="button" variant="secondary" onClick={onClose}>Cancel</Btn>
+            <Btn type="submit" loading={busy === 'save'}>Save Changes</Btn>
+          </div>
+        </form>
+        <div style={{ marginTop: 24, paddingTop: 18, borderTop: '1px dashed currentColor', opacity: 0.95 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.7, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>Adjust Subscription</div>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+            <div style={{ flex: 1 }}>
+              <Input label="Days to add (or negative)" type="number" value={days} onChange={e => setDays(e.target.value)} placeholder="e.g. 30 or -7" />
+            </div>
+            <Btn variant="warning" onClick={extend} loading={busy === 'ext'}>Apply</Btn>
+          </div>
+        </div>
+      </Modal>
+    );
+  }
+
+  // ── Plan edit modal ────────────────────────────────────────────────────────
+  function PlanEditModal({ p, onClose, onSaved }) {
+    const isNew = !p;
+    const [form, setForm] = useState({
+      code: p?.code || '', name: p?.name || '',
+      price_inr: p?.price_inr ?? '', duration_days: p?.duration_days ?? '',
+      active: p?.active !== undefined ? p.active : true,
+    });
+    const [error, setError] = useState('');
+    const [busy, setBusy]   = useState(false);
+    const sf = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
+    const save = async e => {
+      e.preventDefault(); setError(''); setBusy(true);
+      try {
+        await api.post('/api/admin/plans', {
+          ...form,
+          price_inr: parseFloat(form.price_inr),
+          duration_days: parseInt(form.duration_days),
+          active: !!form.active,
+        });
+        onSaved(); onClose();
+      } catch (err) { setError(err.message); } finally { setBusy(false); }
+    };
+
+    return (
+      <Modal title={isNew ? 'Create Plan' : `Edit Plan: ${p.name}`} onClose={onClose}>
+        <form onSubmit={save} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <Input label="Code (unique key)" required value={form.code} onChange={sf('code')} disabled={!isNew} placeholder="e.g. quarterly" />
+          <Input label="Display Name" required value={form.name} onChange={sf('name')} placeholder="Quarterly Plan" />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <Input label="Price (₹)" required type="number" step="0.01" value={form.price_inr} onChange={sf('price_inr')} />
+            <Input label="Duration (days)" required type="number" value={form.duration_days} onChange={sf('duration_days')} />
+          </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+            <input type="checkbox" checked={!!form.active} onChange={e => setForm(f => ({ ...f, active: e.target.checked }))} /> Active (visible to lenders)
+          </label>
+          {error && <Alert type="error">{error}</Alert>}
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+            <Btn type="button" variant="secondary" onClick={onClose}>Cancel</Btn>
+            <Btn type="submit" loading={busy}>Save Plan</Btn>
+          </div>
+        </form>
+      </Modal>
+    );
+  }
+
+  // ── Admin create modal (super-admin only) ──────────────────────────────────
+  function AdminCreateModal({ onClose, onSaved }) {
+    const [form, setForm]   = useState({ name: '', username: '', password: '' });
+    const [error, setError] = useState('');
+    const [busy, setBusy]   = useState(false);
+    const sf = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
+    const save = async e => {
+      e.preventDefault(); setError(''); setBusy(true);
+      try { await api.post('/api/admin/create-admin', form); onSaved(); onClose(); }
+      catch (err) { setError(err.message); } finally { setBusy(false); }
+    };
+    return (
+      <Modal title="Create New Admin" onClose={onClose}>
+        <form onSubmit={save} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <Input label="Full Name" required value={form.name} onChange={sf('name')} />
+          <Input label="Username"  required value={form.username} onChange={sf('username')} placeholder="alphanumeric, no spaces" />
+          <Input label="Password"  required type="password" value={form.password} onChange={sf('password')} placeholder="Set a strong password" />
+          {error && <Alert type="error">{error}</Alert>}
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+            <Btn type="button" variant="secondary" onClick={onClose}>Cancel</Btn>
+            <Btn type="submit" loading={busy}>Create Admin</Btn>
+          </div>
+        </form>
+      </Modal>
+    );
+  }
+
+  // ── Admin Console (Phase 2) ───────────────────────────────────────────────
   function AdminConsole({ user, onLogout }) {
     const { C, dark } = useTheme();
-    const [tab, setTab]         = useState('users');
+    const isSuper = user.role === 'super_admin';
+    const [tab, setTab]         = useState('overview');
     const [users, setUsers]     = useState([]);
+    const [admins, setAdmins]   = useState([]);
     const [leads, setLeads]     = useState([]);
     const [payments, setPays]   = useState([]);
+    const [audit, setAudit]     = useState([]);
     const [stats, setStats]     = useState(null);
+    const [charts, setCharts]   = useState(null);
+    const [plans, setPlans]     = useState([]);
     const [busy, setBusy]       = useState('');
     const [error, setError]     = useState('');
     const [planByUser, setPbU]  = useState({});
-    const [plans, setPlans]     = useState([]);
+    const [editingLender, setEL]   = useState(null);
+    const [editingPlan, setEP]     = useState(null);   // {plan} for edit; {} for new
+    const [creatingAdmin, setCA]   = useState(false);
 
     const load = useCallback(async () => {
       try {
-        const [u, l, p, s, pl] = await Promise.all([
+        const baseReqs = [
           api.get('/api/admin/users?role=user'),
           api.get('/api/leads'),
           api.get('/api/admin/payments'),
           api.get('/api/admin/stats'),
-          api.get('/api/billing/plans'),
-        ]);
-        setUsers(u); setLeads(l); setPays(p); setStats(s);
-        setPlans(pl.filter(x => !x.is_trial));
+          api.get('/api/admin/charts'),
+          api.get('/api/admin/audit'),
+          api.get('/api/admin/plans').catch(() => api.get('/api/billing/plans')),
+        ];
+        const [u, l, p, s, ch, au, pl] = await Promise.all(baseReqs);
+        setUsers(u); setLeads(l); setPays(p); setStats(s); setCharts(ch); setAudit(au); setPlans(pl);
+        if (isSuper) {
+          const a = await api.get('/api/admin/admins'); setAdmins(a);
+        }
       } catch (e) { setError(e.message); }
-    }, []);
+    }, [isSuper]);
     useEffect(() => { load(); }, [load]);
 
-    const toggle = async (u) => {
+    const toggleUser = async (u) => {
       setBusy('u' + u.id);
-      try {
-        await api.post(`/api/admin/users/${u.id}/${u.status === 'active' ? 'suspend' : 'activate'}`, {});
-        load();
-      } catch (e) { setError(e.message); }
-      finally { setBusy(''); }
+      try { await api.post(`/api/admin/users/${u.id}/${u.status === 'active' ? 'suspend' : 'activate'}`, {}); load(); }
+      catch (e) { setError(e.message); } finally { setBusy(''); }
     };
     const recordPayment = async (uid) => {
       const plan = planByUser[uid];
       if (!plan) { alert('Pick a plan first'); return; }
       setBusy('p' + uid);
-      try {
-        await api.post('/api/billing/manual-payment', { user_id: uid, plan_code: plan, method: 'cash/upi/bank' });
-        load();
-      } catch (e) { setError(e.message); }
-      finally { setBusy(''); }
+      try { await api.post('/api/billing/manual-payment', { user_id: uid, plan_code: plan, method: 'cash/upi/bank' }); load(); }
+      catch (e) { setError(e.message); } finally { setBusy(''); }
     };
 
-    const k = ({ label, value, color }) => (
-      <div style={{ background: C.card, borderRadius: 12, padding: '16px 18px', border: `1px solid ${C.border}`, boxShadow: `0 2px 8px rgba(0,0,0,${dark ? '0.3' : '0.04'})` }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>{label}</div>
-        <div style={{ fontSize: 24, fontWeight: 800, color: color || C.text }}>{value}</div>
-      </div>
-    );
     const tabBtn = (id, label) => (
       <button onClick={() => setTab(id)} style={{
         background: tab === id ? C.primary : 'transparent', color: tab === id ? '#fff' : C.muted,
         border: `1px solid ${tab === id ? C.primary : C.border}`, borderRadius: 9,
         padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+        transition: 'all 0.15s',
       }}>{label}</button>
     );
+    const k = ({ label, value, color, sub }) => (
+      <div style={{
+        background: C.card, borderRadius: 12, padding: '16px 18px', border: `1px solid ${C.border}`,
+        boxShadow: `0 2px 8px rgba(0,0,0,${dark ? '0.3' : '0.04'})`,
+      }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>{label}</div>
+        <div style={{ fontSize: 24, fontWeight: 800, color: color || C.text }}>{value}</div>
+        {sub && <div style={{ fontSize: 11, color: C.faint, marginTop: 3 }}>{sub}</div>}
+      </div>
+    );
+
+    const fmtINR = v => '₹' + Number(v || 0).toLocaleString('en-IN');
+    const fmtMonthShort = ym => {
+      if (!ym) return '';
+      const [y, m] = ym.split('-');
+      return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(m)-1] + " '" + y.slice(2);
+    };
 
     return (
       <div style={{ minHeight: '100vh', background: C.bg }}>
-        <Navbar title={user.role === 'super_admin' ? 'Super Admin Console' : 'Admin Console'} onLogout={onLogout} />
-        <div className="fade-in" style={{ padding: '26px 22px', maxWidth: 1200, margin: '0 auto' }}>
-          <p style={{ color: C.faint, fontSize: 13.5, marginBottom: 22 }}>Welcome, <strong style={{ color: C.text }}>{user.name}</strong> · {user.role.replace('_', ' ')}</p>
+        <Navbar title={isSuper ? 'Super Admin Console' : 'Admin Console'} onLogout={onLogout} />
+        {editingLender && <LenderEditModal u={editingLender} onClose={() => setEL(null)} onSaved={load} />}
+        {editingPlan && <PlanEditModal p={editingPlan.plan} onClose={() => setEP(null)} onSaved={load} />}
+        {creatingAdmin && <AdminCreateModal onClose={() => setCA(false)} onSaved={load} />}
 
+        <div className="fade-in" style={{ padding: '26px 22px', maxWidth: 1280, margin: '0 auto' }}>
+          <p style={{ color: C.faint, fontSize: 13.5, marginBottom: 22 }}>
+            Welcome, <strong style={{ color: C.text }}>{user.name}</strong> · {user.role.replace('_', ' ')}
+          </p>
+
+          {/* KPI cards */}
           {stats && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 22 }}>
               {k({ label: 'Lenders',       value: stats.total_users,  color: C.primary })}
@@ -1195,23 +1369,83 @@
               {k({ label: 'Trial Subs',    value: stats.trial_subs,   color: C.cyan })}
               {k({ label: 'Total Cases',   value: stats.total_cases,  color: C.violet })}
               {k({ label: 'Revenue (₹)',   value: Number(stats.total_revenue).toLocaleString('en-IN'),  color: C.green })}
-              {k({ label: 'Pending Leads', value: stats.pending_leads, color: C.amber })}
+              {k({ label: 'Signup Leads',  value: stats.pending_leads, color: C.amber })}
             </div>
           )}
 
+          {/* Tabs */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
-            {tabBtn('users',   '👥 Lenders')}
-            {tabBtn('leads',   '📩 Signup Requests')}
-            {tabBtn('payments','💳 Payments')}
+            {tabBtn('overview', '📊 Overview')}
+            {tabBtn('users',    '👥 Lenders')}
+            {isSuper && tabBtn('admins',  '🛡 Admins')}
+            {isSuper && tabBtn('plans',   '💼 Plans')}
+            {tabBtn('leads',    '📩 Signup Requests')}
+            {tabBtn('payments', '💳 Payments')}
+            {tabBtn('audit',    '📜 Audit Log')}
           </div>
 
           {error && <Alert type="error">{error}</Alert>}
 
+          {/* ── OVERVIEW with charts ── */}
+          {tab === 'overview' && charts && (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16, marginBottom: 16 }}>
+                <ChartBox title="📈 Monthly Revenue (last 12 months)">
+                  <LineChart
+                    labels={charts.monthly.map(r => fmtMonthShort(r.month))}
+                    datasets={[{ label: 'Revenue', data: charts.monthly.map(r => r.revenue),
+                      borderColor: C.success, backgroundColor: C.success + '28', fill: true }]}
+                    yFmt={fmtAxis} height={240}
+                  />
+                </ChartBox>
+                <ChartBox title="👥 New Signups (last 12 months)">
+                  <BarChart
+                    labels={charts.monthly.map(r => fmtMonthShort(r.month))}
+                    datasets={[{ label: 'Signups', data: charts.monthly.map(r => r.signups),
+                      backgroundColor: C.primary + 'CC', borderRadius: 6 }]}
+                    height={240}
+                  />
+                </ChartBox>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16, marginBottom: 16 }}>
+                <ChartBox title="📊 Subscription Status">
+                  <DoughnutChart
+                    labels={['Trial', 'Active', 'Expired']}
+                    data={[charts.status_counts.trial, charts.status_counts.active, charts.status_counts.expired]}
+                    colors={[C.cyan, C.success, C.error]} height={220}
+                  />
+                </ChartBox>
+                <ChartBox title="💼 Active Subs by Plan">
+                  {Object.keys(charts.plan_counts).length === 0
+                    ? <div style={{ color: C.faint, textAlign: 'center', padding: 40 }}>No subs yet</div>
+                    : <DoughnutChart
+                        labels={Object.keys(charts.plan_counts)}
+                        data={Object.values(charts.plan_counts)}
+                        colors={CHART_PALETTE} height={220}
+                      />
+                  }
+                </ChartBox>
+                <ChartBox title="💰 Revenue by Plan">
+                  {Object.keys(charts.revenue_by_plan).length === 0
+                    ? <div style={{ color: C.faint, textAlign: 'center', padding: 40 }}>No revenue yet</div>
+                    : <BarChart
+                        labels={Object.keys(charts.revenue_by_plan)}
+                        datasets={[{ label: 'Revenue', data: Object.values(charts.revenue_by_plan),
+                          backgroundColor: CHART_PALETTE.map(c => c + 'CC'), borderRadius: 6 }]}
+                        yFmt={fmtAxis} height={220}
+                      />
+                  }
+                </ChartBox>
+              </div>
+            </>
+          )}
+
+          {/* ── LENDERS ── */}
           {tab === 'users' && (
             <div style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
               <div className="tbl-wrap">
                 <table>
-                  <thead><tr><th>ID</th><th>Name</th><th>Phone</th><th>Plan</th><th>Days Left</th><th>Status</th><th>Manual Payment</th><th>Action</th></tr></thead>
+                  <thead><tr><th>ID</th><th>Name</th><th>Phone</th><th>Email</th><th>Plan</th><th>Days Left</th><th>Status</th><th>Manual Payment</th><th>Actions</th></tr></thead>
                   <tbody>
                     {users.map(u => {
                       const s = u.subscription;
@@ -1220,6 +1454,7 @@
                           <td>#{u.id}</td>
                           <td style={{ fontWeight: 600 }}>{u.name}</td>
                           <td>{u.phone || '—'}</td>
+                          <td>{u.email || '—'}</td>
                           <td>{s?.plan_code || '—'}</td>
                           <td>
                             {s ? (() => {
@@ -1237,27 +1472,103 @@
                               <select value={planByUser[u.id] || ''} onChange={e => setPbU(m => ({ ...m, [u.id]: e.target.value }))} style={{
                                 background: C.inputBg, color: C.text, border: `1px solid ${C.border}`, borderRadius: 7, padding: '5px 8px', fontSize: 12.5,
                               }}>
-                                <option value="">— pick —</option>
-                                {plans.map(p => <option key={p.code} value={p.code}>{p.name} ₹{p.price_inr}</option>)}
+                                <option value="">— plan —</option>
+                                {plans.filter(p => !p.is_trial && p.active).map(p => <option key={p.code} value={p.code}>{p.name} ₹{p.price_inr}</option>)}
                               </select>
-                              <Btn onClick={() => recordPayment(u.id)} loading={busy === 'p' + u.id} style={{ padding: '6px 12px', fontSize: 12 }}>Record</Btn>
+                              <Btn onClick={() => recordPayment(u.id)} loading={busy === 'p' + u.id} style={{ padding: '6px 10px', fontSize: 12 }}>Record</Btn>
                             </div>
                           </td>
                           <td>
-                            <Btn variant={u.status === 'active' ? 'danger' : 'primary'} loading={busy === 'u' + u.id} onClick={() => toggle(u)} style={{ padding: '6px 12px', fontSize: 12 }}>
-                              {u.status === 'active' ? 'Suspend' : 'Activate'}
-                            </Btn>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <Btn variant="secondary" onClick={() => setEL(u)} style={{ padding: '6px 10px', fontSize: 12 }}>Edit</Btn>
+                              <Btn variant={u.status === 'active' ? 'danger' : 'primary'} loading={busy === 'u' + u.id} onClick={() => toggleUser(u)} style={{ padding: '6px 10px', fontSize: 12 }}>
+                                {u.status === 'active' ? 'Suspend' : 'Activate'}
+                              </Btn>
+                            </div>
                           </td>
                         </tr>
                       );
                     })}
-                    {users.length === 0 && <tr><td colSpan="8" style={{ textAlign: 'center', padding: 40, color: C.faint }}>No lenders yet</td></tr>}
+                    {users.length === 0 && <tr><td colSpan="9" style={{ textAlign: 'center', padding: 40, color: C.faint }}>No lenders yet</td></tr>}
                   </tbody>
                 </table>
               </div>
             </div>
           )}
 
+          {/* ── ADMINS (super-admin only) ── */}
+          {tab === 'admins' && isSuper && (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+                <Btn onClick={() => setCA(true)}>+ New Admin</Btn>
+              </div>
+              <div style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
+                <div className="tbl-wrap">
+                  <table>
+                    <thead><tr><th>ID</th><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Created</th></tr></thead>
+                    <tbody>
+                      {admins.map(a => (
+                        <tr key={a.id}>
+                          <td>#{a.id}</td>
+                          <td style={{ fontWeight: 600 }}>{a.name}</td>
+                          <td>{a.username}</td>
+                          <td>{a.email || '—'}</td>
+                          <td>
+                            <span style={{ padding:'2px 9px', borderRadius:14, fontSize:11, fontWeight:700,
+                              background: a.role === 'super_admin' ? C.violetLight : C.primaryLight,
+                              color: a.role === 'super_admin' ? C.violet : C.primary }}>
+                              {a.role.replace('_', ' ').toUpperCase()}
+                            </span>
+                          </td>
+                          <td>
+                            <span style={{ padding:'2px 9px', borderRadius:14, fontSize:11, fontWeight:700,
+                              background: a.status === 'active' ? C.successLight : C.errorLight,
+                              color: a.status === 'active' ? C.success : C.error }}>{a.status.toUpperCase()}</span>
+                          </td>
+                          <td style={{ whiteSpace: 'nowrap' }}>{(a.created_at || '').slice(0,10)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* ── PLANS (super-admin only) ── */}
+          {tab === 'plans' && isSuper && (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+                <Btn onClick={() => setEP({ plan: null })}>+ New Plan</Btn>
+              </div>
+              <div style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
+                <div className="tbl-wrap">
+                  <table>
+                    <thead><tr><th>Code</th><th>Name</th><th>Price (₹)</th><th>Duration (days)</th><th>Trial?</th><th>Active</th><th></th></tr></thead>
+                    <tbody>
+                      {plans.map(p => (
+                        <tr key={p.code}>
+                          <td><code style={{ fontSize: 12, padding: '2px 7px', borderRadius: 5, background: C.bg }}>{p.code}</code></td>
+                          <td style={{ fontWeight: 600 }}>{p.name}</td>
+                          <td style={{ fontWeight: 700 }}>₹{Number(p.price_inr).toLocaleString('en-IN')}</td>
+                          <td>{p.duration_days}</td>
+                          <td>{p.is_trial ? '✓' : '—'}</td>
+                          <td>
+                            <span style={{ padding:'2px 9px', borderRadius:14, fontSize:11, fontWeight:700,
+                              background: p.active ? C.successLight : C.errorLight,
+                              color: p.active ? C.success : C.error }}>{p.active ? 'ACTIVE' : 'HIDDEN'}</span>
+                          </td>
+                          <td><Btn variant="secondary" onClick={() => setEP({ plan: p })} style={{ padding: '6px 12px', fontSize: 12 }}>Edit</Btn></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* ── SIGNUP REQUESTS ── */}
           {tab === 'leads' && (
             <div style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
               <div className="tbl-wrap">
@@ -1282,6 +1593,7 @@
             </div>
           )}
 
+          {/* ── PAYMENTS ── */}
           {tab === 'payments' && (
             <div style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
               <div className="tbl-wrap">
@@ -1294,7 +1606,7 @@
                         <td style={{ whiteSpace: 'nowrap' }}>{(p.paid_at || p.created_at || '').slice(0,10)}</td>
                         <td>{p.user_name || p.user_id}</td>
                         <td>{p.plan_code}</td>
-                        <td>₹{Number(p.amount_inr).toLocaleString('en-IN')}</td>
+                        <td style={{ fontWeight: 700 }}>{fmtINR(p.amount_inr)}</td>
                         <td>{p.provider}</td>
                         <td>
                           <span style={{ padding:'2px 9px', borderRadius:14, fontSize:11, fontWeight:700,
@@ -1304,6 +1616,30 @@
                       </tr>
                     ))}
                     {payments.length === 0 && <tr><td colSpan="7" style={{ textAlign: 'center', padding: 40, color: C.faint }}>No payments yet</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* ── AUDIT LOG ── */}
+          {tab === 'audit' && (
+            <div style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
+              <div className="tbl-wrap">
+                <table>
+                  <thead><tr><th>ID</th><th>When</th><th>Actor</th><th>Action</th><th>Target</th><th>Details</th></tr></thead>
+                  <tbody>
+                    {audit.map(a => (
+                      <tr key={a.id}>
+                        <td>#{a.id}</td>
+                        <td style={{ whiteSpace: 'nowrap', fontSize: 12 }}>{(a.created_at || '').slice(0,16).replace('T',' ')}</td>
+                        <td>{a.actor_id || '—'}</td>
+                        <td><span style={{ padding:'2px 9px', borderRadius:14, fontSize:11, fontWeight:700, background: C.primaryLight, color: C.primary }}>{a.action}</span></td>
+                        <td style={{ fontSize: 12 }}>{a.target_type ? `${a.target_type}#${a.target_id}` : '—'}</td>
+                        <td style={{ maxWidth: 320, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize: 12, color: C.muted }} title={a.meta}>{a.meta || '—'}</td>
+                      </tr>
+                    ))}
+                    {audit.length === 0 && <tr><td colSpan="6" style={{ textAlign: 'center', padding: 40, color: C.faint }}>No audit entries yet</td></tr>}
                   </tbody>
                 </table>
               </div>

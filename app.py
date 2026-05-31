@@ -1532,6 +1532,153 @@ def admin_plans(_user):
     return jsonify(rows)
 
 
+@app.route("/api/admin/users/<int:uid>", methods=["PUT"])
+@require_auth(roles=["admin", "super_admin"])
+def admin_update_user(_user, uid):
+    """Edit a user's name / phone / email / username. Admin can only edit role=user."""
+    data = request.get_json() or {}
+    conn = get_db()
+    cur  = db_execute(conn, "SELECT * FROM users WHERE id = ?", (uid,))
+    row  = cur.fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"error": "User not found"}), 404
+    row = dict(row)
+    if _user["role"] == "admin" and row["role"] != "user":
+        conn.close()
+        return jsonify({"error": "Admins can only edit lenders"}), 403
+
+    fields = []
+    params = []
+    for k in ("name", "phone", "email", "username"):
+        if k in data:
+            v = (data.get(k) or "").strip() or None
+            fields.append(f"{k} = ?")
+            params.append(v)
+    if not fields:
+        conn.close()
+        return jsonify({"error": "Nothing to update"}), 400
+    params.append(uid)
+
+    try:
+        db_execute(conn, f"UPDATE users SET {', '.join(fields)} WHERE id = ?", params)
+        conn.commit()
+    except Exception as e:
+        conn.close()
+        return jsonify({"error": str(e)}), 400
+    conn.close()
+    audit("user_update", "user", uid, {k: data.get(k) for k in ("name", "phone", "email", "username") if k in data})
+    return jsonify({"success": True})
+
+
+@app.route("/api/admin/subscription/<int:user_id>/extend", methods=["POST"])
+@require_auth(roles=["admin", "super_admin"])
+def admin_extend_sub(_user, user_id):
+    """Manually extend / adjust a tenant's subscription expiry by N days."""
+    data = request.get_json() or {}
+    days = int(data.get("days") or 0)
+    if days == 0:
+        return jsonify({"error": "days required (positive to extend, negative to shorten)"}), 400
+    conn = get_db()
+    cur  = db_execute(conn, "SELECT * FROM subscriptions WHERE user_id = ? ORDER BY id DESC LIMIT 1", (user_id,))
+    sub  = cur.fetchone()
+    if not sub:
+        conn.close()
+        return jsonify({"error": "No subscription found"}), 404
+    sub = dict(sub)
+    exp = sub["expires_at"]
+    if isinstance(exp, str):
+        try: exp = datetime.fromisoformat(exp.replace("Z", "").replace(" ", "T")[:19])
+        except: exp = datetime.utcnow()
+    new_exp = exp + timedelta(days=days)
+    db_execute(conn,
+        "UPDATE subscriptions SET expires_at = ?, status = ? WHERE id = ?",
+        (new_exp, "active", sub["id"]))
+    conn.commit(); conn.close()
+    audit("sub_extend", "subscription", sub["id"], {"days": days, "user_id": user_id})
+    return jsonify({"success": True, "expires_at": new_exp.isoformat()})
+
+
+@app.route("/api/admin/admins", methods=["GET"])
+@require_auth(roles=["super_admin"])
+def admin_list_admins(_user):
+    conn = get_db()
+    cur  = db_execute(conn,
+        "SELECT id, name, username, email, role, status, created_at FROM users "
+        "WHERE role IN ('admin','super_admin') ORDER BY id ASC")
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return jsonify(rows)
+
+
+@app.route("/api/admin/charts", methods=["GET"])
+@require_auth(roles=["admin", "super_admin"])
+def admin_charts(_user):
+    """Aggregated analytics for admin/super-admin overview dashboard."""
+    today = date_type.today()
+    conn  = get_db()
+
+    cur = db_execute(conn, "SELECT * FROM payments WHERE status = 'success'")
+    payments = [dict(r) for r in cur.fetchall()]
+    cur = db_execute(conn, "SELECT created_at FROM users WHERE role = 'user'")
+    user_rows = [dict(r) for r in cur.fetchall()]
+    cur = db_execute(conn, "SELECT plan_code, status, expires_at FROM subscriptions")
+    subs = [dict(r) for r in cur.fetchall()]
+    conn.close()
+
+    # Last 12 months window
+    months = {}
+    for i in range(11, -1, -1):
+        m, y = today.month - i, today.year
+        while m <= 0: m += 12; y -= 1
+        key = f"{y}-{m:02d}"
+        months[key] = {"month": key, "revenue": 0, "signups": 0}
+
+    for p in payments:
+        ts = p.get("paid_at") or p.get("created_at")
+        if not ts: continue
+        key = str(ts)[:7]
+        if key in months:
+            months[key]["revenue"] += float(p.get("amount_inr") or 0)
+
+    for u in user_rows:
+        ts = u.get("created_at")
+        if not ts: continue
+        key = str(ts)[:7]
+        if key in months:
+            months[key]["signups"] += 1
+
+    plan_counts = {}
+    status_counts = {"trial": 0, "active": 0, "expired": 0}
+    now = datetime.utcnow()
+    for s in subs:
+        plan_counts[s["plan_code"]] = plan_counts.get(s["plan_code"], 0) + 1
+        exp = s["expires_at"]
+        if isinstance(exp, str):
+            try: exp = datetime.fromisoformat(exp.replace("Z", "").replace(" ", "T")[:19])
+            except: exp = now
+        if exp < now:
+            status_counts["expired"] += 1
+        elif s["status"] == "trial":
+            status_counts["trial"] += 1
+        else:
+            status_counts["active"] += 1
+
+    revenue_by_plan = {}
+    for p in payments:
+        c = p.get("plan_code") or "unknown"
+        revenue_by_plan[c] = revenue_by_plan.get(c, 0) + float(p.get("amount_inr") or 0)
+
+    return jsonify({
+        "monthly":           sorted(months.values(), key=lambda x: x["month"]),
+        "plan_counts":       plan_counts,
+        "status_counts":     status_counts,
+        "revenue_by_plan":   revenue_by_plan,
+        "total_revenue":     round(sum(float(p.get("amount_inr") or 0) for p in payments), 2),
+        "total_signups":     len(user_rows),
+    })
+
+
 @app.route("/api/admin/stats", methods=["GET"])
 @require_auth(roles=["admin", "super_admin"])
 def admin_stats(_user):
