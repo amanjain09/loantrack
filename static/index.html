@@ -790,35 +790,81 @@
   function AuthModal({ mode, setMode, onClose, onLogin }) {
     const { C } = useTheme();
     const { t } = useLang();
-    const [login, setLogin]     = useState({ username: '', password: '' });
-    const [req, setReq]         = useState({ name: '', email: '', phone: '', company: '', message: '' });
-    const [error, setError]     = useState('');
-    const [loading, setLoading] = useState(false);
-    const [sent, setSent]       = useState(false);
-    const sl = k => e => { setLogin(f => ({ ...f, [k]: e.target.value })); setError(''); };
-    const sr = k => e => { setReq(f => ({ ...f, [k]: e.target.value }));   setError(''); };
 
-    const doLogin = async e => {
-      e.preventDefault(); setLoading(true); setError('');
+    // Tabs: 'signup' (lender phone OTP) | 'login' (lender phone OTP) | 'admin' (username + password)
+    const [signupStep, setSignupStep] = useState(1);   // 1=phone, 2=otp+name
+    const [loginStep, setLoginStep]   = useState(1);   // 1=phone, 2=otp
+    const [phone, setPhone]           = useState('');
+    const [code, setCode]             = useState('');
+    const [name, setName]             = useState('');
+    const [adminForm, setAdminForm]   = useState({ username: '', password: '' });
+    const [error, setError]           = useState('');
+    const [loading, setLoading]       = useState(false);
+    const [info, setInfo]             = useState('');
+
+    const resetAll = () => {
+      setSignupStep(1); setLoginStep(1);
+      setPhone(''); setCode(''); setName('');
+      setAdminForm({ username: '', password: '' });
+      setError(''); setInfo('');
+    };
+
+    const switchTab = id => { setMode(id); resetAll(); };
+
+    // ─── Lender sign-up flow ───
+    const sendSignupOtp = async e => {
+      e.preventDefault(); setError(''); setLoading(true);
       try {
-        const res = await api.post('/api/login', login);
-        if (res.success) onLogin(); else setError(res.message || 'Invalid credentials');
-      } catch (err) { setError(err.message || 'Server error'); }
+        if (!phone || phone.length < 10) throw new Error('Enter a valid 10-digit mobile.');
+        await api.post('/api/auth/request-otp', { phone, purpose: 'signup' });
+        setInfo('OTP sent. Check your phone.'); setSignupStep(2);
+      } catch (err) { setError(err.message || 'Could not send OTP.'); }
       finally { setLoading(false); }
     };
-    const doRequest = async e => {
-      e.preventDefault();
-      if (!req.name.trim())              { setError('Please enter your name.'); return; }
-      if (!req.email.trim() && !req.phone.trim()) { setError('Add an email or phone so we can reach you.'); return; }
-      setLoading(true); setError('');
-      try { await api.post('/api/request-access', req); setSent(true); }
-      catch (err) { setError(err.message || 'Could not submit. Try again.'); }
+    const completeSignup = async e => {
+      e.preventDefault(); setError(''); setLoading(true);
+      try {
+        if (!name.trim())   throw new Error('Please enter your name.');
+        if (!code || code.length < 4) throw new Error('Enter the OTP you received.');
+        await api.post('/api/auth/verify-otp', { phone, code, name, purpose: 'signup' });
+        onLogin();
+      } catch (err) { setError(err.message || 'Could not verify.'); }
+      finally { setLoading(false); }
+    };
+
+    // ─── Lender login flow ───
+    const sendLoginOtp = async e => {
+      e.preventDefault(); setError(''); setLoading(true);
+      try {
+        if (!phone || phone.length < 10) throw new Error('Enter your registered mobile.');
+        await api.post('/api/auth/request-otp', { phone, purpose: 'login' });
+        setInfo('OTP sent.'); setLoginStep(2);
+      } catch (err) { setError(err.message || 'Could not send OTP.'); }
+      finally { setLoading(false); }
+    };
+    const completeLogin = async e => {
+      e.preventDefault(); setError(''); setLoading(true);
+      try {
+        if (!code) throw new Error('Enter your OTP.');
+        await api.post('/api/auth/verify-otp', { phone, code, purpose: 'login' });
+        onLogin();
+      } catch (err) { setError(err.message || 'Could not verify.'); }
+      finally { setLoading(false); }
+    };
+
+    // ─── Admin / Super-admin login ───
+    const doAdminLogin = async e => {
+      e.preventDefault(); setError(''); setLoading(true);
+      try {
+        const r = await api.post('/api/auth/login', adminForm);
+        if (r.success) onLogin(); else setError(r.message || 'Invalid credentials');
+      } catch (err) { setError(err.message || 'Server error'); }
       finally { setLoading(false); }
     };
 
     const tab = (id, label) => (
-      <button onClick={() => { setMode(id); setError(''); }} style={{
-        flex: 1, padding: '11px 0', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+      <button onClick={() => switchTab(id)} style={{
+        flex: 1, padding: '12px 4px', fontSize: 13.5, fontWeight: 700, cursor: 'pointer',
         background: 'none', border: 'none', borderBottom: `2.5px solid ${mode === id ? C.primary : 'transparent'}`,
         color: mode === id ? C.primary : C.faint, transition: 'color 0.2s, border-color 0.2s',
       }}>{label}</button>
@@ -831,7 +877,7 @@
         backdropFilter: 'blur(6px)',
       }}>
         <div className="fade-in" style={{
-          background: C.card, borderRadius: 22, width: '100%', maxWidth: 440,
+          background: C.card, borderRadius: 22, width: '100%', maxWidth: 460,
           maxHeight: '92vh', overflowY: 'auto', border: `1px solid ${C.border}`,
           boxShadow: '0 32px 80px rgba(0,0,0,0.5)',
         }}>
@@ -848,43 +894,421 @@
               </div>
             </div>
             <div style={{ display: 'flex', borderBottom: `1px solid ${C.border}` }}>
-              {tab('login', 'Sign In')}
-              {tab('request', 'Request Access')}
+              {tab('signup', 'Sign Up')}
+              {tab('login',  'Sign In')}
+              {tab('admin',  'Admin')}
             </div>
           </div>
 
           <div style={{ padding: '24px 30px 30px' }}>
-            {mode === 'login' && (
-              <form onSubmit={doLogin} style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
-                <Input label={t('username')} required type="text" autoFocus value={login.username} onChange={sl('username')} placeholder="Enter username" />
-                <Input label={t('password')} required type="password" value={login.password} onChange={sl('password')} placeholder="Enter password" />
+            {/* SIGN UP — phone → OTP + name */}
+            {mode === 'signup' && signupStep === 1 && (
+              <form onSubmit={sendSignupOtp} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <h3 style={{ fontSize: 17, fontWeight: 800, color: C.text }}>Start your 7-day free trial</h3>
+                <p style={{ fontSize: 13, color: C.muted, marginTop: -6 }}>No card needed. We’ll send an OTP to verify your number.</p>
+                <Input label="Mobile Number" required type="tel" autoFocus value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g,'').slice(0,10))} placeholder="9876543210" />
                 {error && <Alert type="error">{error}</Alert>}
-                <Btn type="submit" loading={loading} style={{ width: '100%', padding: 12, fontSize: 15, marginTop: 4 }}>{t('signIn')} →</Btn>
-                <p style={{ textAlign: 'center', fontSize: 11.5, color: C.faint }}>🔒 Authorised administrators only</p>
+                <Btn type="submit" loading={loading} style={{ width: '100%', padding: 12, fontSize: 15, marginTop: 4 }}>Send OTP →</Btn>
+                <p style={{ textAlign: 'center', fontSize: 11.5, color: C.faint }}>By signing up you agree to fair-use terms.</p>
+              </form>
+            )}
+            {mode === 'signup' && signupStep === 2 && (
+              <form onSubmit={completeSignup} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <h3 style={{ fontSize: 17, fontWeight: 800, color: C.text }}>Verify & finish</h3>
+                {info && <Alert type="success">{info}</Alert>}
+                <Input label="Your Name" required autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="Full name" />
+                <Input label="6-digit OTP" required value={code} onChange={e => setCode(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="123456" />
+                {error && <Alert type="error">{error}</Alert>}
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <Btn type="button" variant="secondary" onClick={() => { setSignupStep(1); setError(''); setInfo(''); }}>← Back</Btn>
+                  <Btn type="submit" loading={loading} style={{ flex: 1, padding: 12, fontSize: 15 }}>Start Trial →</Btn>
+                </div>
               </form>
             )}
 
-            {mode === 'request' && (sent ? (
-              <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                <div style={{ fontSize: 46, marginBottom: 12 }}>✅</div>
-                <h3 style={{ fontSize: 19, fontWeight: 800, color: C.text, marginBottom: 8 }}>Request received!</h3>
-                <p style={{ fontSize: 13.5, color: C.muted, lineHeight: 1.6 }}>Thank you for your interest in Prabhu Ventures. Our team will reach out to you shortly.</p>
-                <Btn variant="secondary" onClick={onClose} style={{ marginTop: 20 }}>Close</Btn>
-              </div>
-            ) : (
-              <form onSubmit={doRequest} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <Input label="Full Name" required value={req.name} onChange={sr('name')} placeholder="Your name" autoFocus />
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  <Input label="Email" type="email" value={req.email} onChange={sr('email')} placeholder="you@email.com" />
-                  <Input label="Phone" type="tel" value={req.phone} onChange={sr('phone')} placeholder="9876543210" />
-                </div>
-                <Input label="Business / Firm (optional)" value={req.company} onChange={sr('company')} placeholder="Your lending business" />
-                <Textarea label="Message (optional)" value={req.message} onChange={sr('message')} rows={2} placeholder="Tell us about your needs…" />
+            {/* SIGN IN — lender phone OTP */}
+            {mode === 'login' && loginStep === 1 && (
+              <form onSubmit={sendLoginOtp} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <h3 style={{ fontSize: 17, fontWeight: 800, color: C.text }}>Welcome back</h3>
+                <p style={{ fontSize: 13, color: C.muted, marginTop: -6 }}>Sign in with the mobile number you registered.</p>
+                <Input label="Mobile Number" required type="tel" autoFocus value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g,'').slice(0,10))} placeholder="9876543210" />
                 {error && <Alert type="error">{error}</Alert>}
-                <Btn type="submit" loading={loading} style={{ width: '100%', padding: 12, fontSize: 15, marginTop: 2 }}>Request Access →</Btn>
+                <Btn type="submit" loading={loading} style={{ width: '100%', padding: 12, fontSize: 15, marginTop: 4 }}>Send OTP →</Btn>
               </form>
-            ))}
+            )}
+            {mode === 'login' && loginStep === 2 && (
+              <form onSubmit={completeLogin} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <h3 style={{ fontSize: 17, fontWeight: 800, color: C.text }}>Enter OTP</h3>
+                {info && <Alert type="success">{info}</Alert>}
+                <Input label="6-digit OTP" required autoFocus value={code} onChange={e => setCode(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="123456" />
+                {error && <Alert type="error">{error}</Alert>}
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <Btn type="button" variant="secondary" onClick={() => { setLoginStep(1); setError(''); setInfo(''); }}>← Back</Btn>
+                  <Btn type="submit" loading={loading} style={{ flex: 1, padding: 12, fontSize: 15 }}>Sign In →</Btn>
+                </div>
+              </form>
+            )}
+
+            {/* ADMIN — username + password */}
+            {mode === 'admin' && (
+              <form onSubmit={doAdminLogin} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <h3 style={{ fontSize: 17, fontWeight: 800, color: C.text }}>Staff sign-in</h3>
+                <p style={{ fontSize: 13, color: C.muted, marginTop: -6 }}>For Prabhu Ventures admins & super-admins.</p>
+                <Input label={t('username')} required type="text" autoFocus value={adminForm.username} onChange={e => setAdminForm(f => ({ ...f, username: e.target.value }))} placeholder="username" />
+                <Input label={t('password')} required type="password" value={adminForm.password} onChange={e => setAdminForm(f => ({ ...f, password: e.target.value }))} placeholder="••••••••" />
+                {error && <Alert type="error">{error}</Alert>}
+                <Btn type="submit" loading={loading} style={{ width: '100%', padding: 12, fontSize: 15, marginTop: 4 }}>{t('signIn')} →</Btn>
+                <p style={{ textAlign: 'center', fontSize: 11.5, color: C.faint }}>🔒 Authorised staff only</p>
+              </form>
+            )}
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Subscription Banner (shown to tenants on every page)
+  // ──────────────────────────────────────────────────────────────────────────
+  function SubBanner({ sub, onUpgrade }) {
+    const { C } = useTheme();
+    if (!sub) return null;
+    const trial   = sub.is_trial;
+    const expired = !sub.active;
+    const soon    = sub.days_left >= 0 && sub.days_left <= 3;
+    if (!trial && !expired && !soon) return null;
+
+    let bg = C.amberLight, color = C.amber, border = C.amberBorder, msg = '';
+    if (expired)      { bg = C.errorLight;  color = C.error;  border = C.errorBorder;
+                        msg = `Your subscription expired. Renew to continue.`; }
+    else if (trial)   { msg = `🎁 Trial: ${sub.days_left} day${sub.days_left===1?'':'s'} remaining. Upgrade for uninterrupted access.`; }
+    else if (soon)    { msg = `⏳ Subscription renews in ${sub.days_left} day${sub.days_left===1?'':'s'}.`; }
+
+    return (
+      <div style={{
+        background: bg, color, borderBottom: `1px solid ${border}`,
+        padding: '10px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        fontSize: 13.5, fontWeight: 600, gap: 12,
+      }}>
+        <span>{msg}</span>
+        <button onClick={onUpgrade} style={{
+          background: color, color: '#fff', border: 'none', borderRadius: 7,
+          padding: '6px 14px', fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
+        }}>{expired ? 'Renew Now' : 'Upgrade'}</button>
+      </div>
+    );
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Billing Page (tenant)
+  // ──────────────────────────────────────────────────────────────────────────
+  function BillingPage({ onBack, onLogout, onPaid }) {
+    const { C, dark } = useTheme();
+    const [plans, setPlans]     = useState([]);
+    const [data, setData]       = useState(null);
+    const [busyPlan, setBusy]   = useState('');
+    const [error, setError]     = useState('');
+    const [success, setSuccess] = useState('');
+
+    const refresh = useCallback(async () => {
+      try {
+        const [p, b] = await Promise.all([api.get('/api/billing/plans'), api.get('/api/billing/me')]);
+        setPlans(p.filter(x => !x.is_trial));
+        setData(b);
+      } catch (e) { setError(e.message); }
+    }, []);
+    useEffect(() => { refresh(); }, [refresh]);
+
+    const buy = async (plan_code) => {
+      setBusy(plan_code); setError(''); setSuccess('');
+      try {
+        const order = await api.post('/api/billing/create-order', { plan_code });
+        // Manual provider: immediately verify (admin will reconcile offline)
+        const v = await api.post('/api/billing/verify', { provider_order_id: order.provider_order_id });
+        if (v.success) { setSuccess('Subscription activated!'); refresh(); onPaid?.(); }
+      } catch (e) { setError(e.message); }
+      finally { setBusy(''); }
+    };
+
+    const sub = data?.subscription;
+    return (
+      <div style={{ minHeight: '100vh', background: C.bg }}>
+        <Navbar title="Billing & Subscription" onBack={onBack} onLogout={onLogout} />
+        <div className="fade-in" style={{ padding: '28px 22px', maxWidth: 1000, margin: '0 auto' }}>
+          {/* Current subscription card */}
+          <div style={{
+            background: C.card, borderRadius: 16, padding: '22px 24px',
+            border: `1px solid ${C.border}`, marginBottom: 22,
+            boxShadow: `0 2px 14px rgba(0,0,0,${dark ? '0.3' : '0.05'})`,
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 10 }}>Current Plan</div>
+            {!sub ? <div style={{ color: C.faint }}>No subscription yet.</div> : (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
+                <div>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: C.text }}>
+                    {sub.plan_code.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                  </div>
+                  <div style={{ fontSize: 13, color: sub.active ? C.success : C.error, fontWeight: 600, marginTop: 4 }}>
+                    {sub.active ? `${sub.days_left} day${sub.days_left===1?'':'s'} remaining` : 'Expired — renew to continue'}
+                  </div>
+                  {sub.expires_at_iso && <div style={{ fontSize: 12, color: C.faint, marginTop: 4 }}>Renews / expires on {new Date(sub.expires_at_iso).toLocaleDateString('en-IN', { day:'numeric', month:'long', year:'numeric' })}</div>}
+                </div>
+                <span style={{ padding: '6px 12px', borderRadius: 16, fontSize: 11.5, fontWeight: 700, background: sub.active ? C.successLight : C.errorLight, color: sub.active ? C.success : C.error }}>
+                  {(sub.effective_status || sub.status).toUpperCase()}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {error   && <Alert type="error">{error}</Alert>}
+          {success && <Alert type="success">{success}</Alert>}
+
+          {/* Plans grid */}
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: '0.06em', textTransform: 'uppercase', margin: '6px 0 14px' }}>Choose a Plan</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+            {plans.map(p => {
+              const isCurrent = sub?.plan_code === p.code && sub?.active;
+              return (
+                <div key={p.code} style={{
+                  background: C.card, borderRadius: 16, padding: '22px 22px',
+                  border: `2px solid ${isCurrent ? C.success : C.border}`,
+                  boxShadow: `0 2px 14px rgba(0,0,0,${dark ? '0.3' : '0.05'})`,
+                }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{p.name}</div>
+                  <div style={{ fontSize: 30, fontWeight: 900, color: C.text, marginTop: 8 }}>₹{Number(p.price_inr).toLocaleString('en-IN')}</div>
+                  <div style={{ fontSize: 12.5, color: C.faint, marginTop: 4 }}>for {p.duration_days} days</div>
+                  <Btn onClick={() => buy(p.code)} loading={busyPlan === p.code} disabled={isCurrent} style={{ width: '100%', marginTop: 18 }}>
+                    {isCurrent ? '✓ Current Plan' : 'Subscribe'}
+                  </Btn>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Payment history */}
+          {data?.payments?.length > 0 && (
+            <div style={{ marginTop: 28 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 12 }}>Payment History</div>
+              <div style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
+                <div className="tbl-wrap">
+                  <table>
+                    <thead><tr><th>Date</th><th>Plan</th><th>Amount</th><th>Method</th><th>Status</th></tr></thead>
+                    <tbody>
+                      {data.payments.map(p => (
+                        <tr key={p.id}>
+                          <td style={{ whiteSpace: 'nowrap' }}>{(p.paid_at || p.created_at || '').slice(0,10)}</td>
+                          <td>{p.plan_code}</td>
+                          <td>₹{Number(p.amount_inr).toLocaleString('en-IN')}</td>
+                          <td>{p.provider}</td>
+                          <td>
+                            <span style={{ padding:'2px 9px', borderRadius:14, fontSize:11, fontWeight:700,
+                              background: p.status === 'success' ? C.successLight : C.errorLight,
+                              color: p.status === 'success' ? C.success : C.error,
+                            }}>{p.status.toUpperCase()}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Admin Console
+  // ──────────────────────────────────────────────────────────────────────────
+  function AdminConsole({ user, onLogout }) {
+    const { C, dark } = useTheme();
+    const [tab, setTab]         = useState('users');
+    const [users, setUsers]     = useState([]);
+    const [leads, setLeads]     = useState([]);
+    const [payments, setPays]   = useState([]);
+    const [stats, setStats]     = useState(null);
+    const [busy, setBusy]       = useState('');
+    const [error, setError]     = useState('');
+    const [planByUser, setPbU]  = useState({});
+    const [plans, setPlans]     = useState([]);
+
+    const load = useCallback(async () => {
+      try {
+        const [u, l, p, s, pl] = await Promise.all([
+          api.get('/api/admin/users?role=user'),
+          api.get('/api/leads'),
+          api.get('/api/admin/payments'),
+          api.get('/api/admin/stats'),
+          api.get('/api/billing/plans'),
+        ]);
+        setUsers(u); setLeads(l); setPays(p); setStats(s);
+        setPlans(pl.filter(x => !x.is_trial));
+      } catch (e) { setError(e.message); }
+    }, []);
+    useEffect(() => { load(); }, [load]);
+
+    const toggle = async (u) => {
+      setBusy('u' + u.id);
+      try {
+        await api.post(`/api/admin/users/${u.id}/${u.status === 'active' ? 'suspend' : 'activate'}`, {});
+        load();
+      } catch (e) { setError(e.message); }
+      finally { setBusy(''); }
+    };
+    const recordPayment = async (uid) => {
+      const plan = planByUser[uid];
+      if (!plan) { alert('Pick a plan first'); return; }
+      setBusy('p' + uid);
+      try {
+        await api.post('/api/billing/manual-payment', { user_id: uid, plan_code: plan, method: 'cash/upi/bank' });
+        load();
+      } catch (e) { setError(e.message); }
+      finally { setBusy(''); }
+    };
+
+    const k = ({ label, value, color }) => (
+      <div style={{ background: C.card, borderRadius: 12, padding: '16px 18px', border: `1px solid ${C.border}`, boxShadow: `0 2px 8px rgba(0,0,0,${dark ? '0.3' : '0.04'})` }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>{label}</div>
+        <div style={{ fontSize: 24, fontWeight: 800, color: color || C.text }}>{value}</div>
+      </div>
+    );
+    const tabBtn = (id, label) => (
+      <button onClick={() => setTab(id)} style={{
+        background: tab === id ? C.primary : 'transparent', color: tab === id ? '#fff' : C.muted,
+        border: `1px solid ${tab === id ? C.primary : C.border}`, borderRadius: 9,
+        padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+      }}>{label}</button>
+    );
+
+    return (
+      <div style={{ minHeight: '100vh', background: C.bg }}>
+        <Navbar title={user.role === 'super_admin' ? 'Super Admin Console' : 'Admin Console'} onLogout={onLogout} />
+        <div className="fade-in" style={{ padding: '26px 22px', maxWidth: 1200, margin: '0 auto' }}>
+          <p style={{ color: C.faint, fontSize: 13.5, marginBottom: 22 }}>Welcome, <strong style={{ color: C.text }}>{user.name}</strong> · {user.role.replace('_', ' ')}</p>
+
+          {stats && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 22 }}>
+              {k({ label: 'Lenders',       value: stats.total_users,  color: C.primary })}
+              {k({ label: 'Active Subs',   value: stats.active_subs,  color: C.success })}
+              {k({ label: 'Trial Subs',    value: stats.trial_subs,   color: C.cyan })}
+              {k({ label: 'Total Cases',   value: stats.total_cases,  color: C.violet })}
+              {k({ label: 'Revenue (₹)',   value: Number(stats.total_revenue).toLocaleString('en-IN'),  color: C.green })}
+              {k({ label: 'Pending Leads', value: stats.pending_leads, color: C.amber })}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
+            {tabBtn('users',   '👥 Lenders')}
+            {tabBtn('leads',   '📩 Signup Requests')}
+            {tabBtn('payments','💳 Payments')}
+          </div>
+
+          {error && <Alert type="error">{error}</Alert>}
+
+          {tab === 'users' && (
+            <div style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
+              <div className="tbl-wrap">
+                <table>
+                  <thead><tr><th>ID</th><th>Name</th><th>Phone</th><th>Plan</th><th>Days Left</th><th>Status</th><th>Manual Payment</th><th>Action</th></tr></thead>
+                  <tbody>
+                    {users.map(u => {
+                      const s = u.subscription;
+                      return (
+                        <tr key={u.id}>
+                          <td>#{u.id}</td>
+                          <td style={{ fontWeight: 600 }}>{u.name}</td>
+                          <td>{u.phone || '—'}</td>
+                          <td>{s?.plan_code || '—'}</td>
+                          <td>
+                            {s ? (() => {
+                              const d = Math.ceil((new Date(s.expires_at) - new Date()) / 86400000);
+                              return <span style={{ color: d < 0 ? C.error : (d < 4 ? C.amber : C.success), fontWeight: 700 }}>{d}d</span>;
+                            })() : '—'}
+                          </td>
+                          <td>
+                            <span style={{ padding:'2px 9px', borderRadius:14, fontSize:11, fontWeight:700,
+                              background: u.status === 'active' ? C.successLight : C.errorLight,
+                              color: u.status === 'active' ? C.success : C.error }}>{u.status.toUpperCase()}</span>
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <select value={planByUser[u.id] || ''} onChange={e => setPbU(m => ({ ...m, [u.id]: e.target.value }))} style={{
+                                background: C.inputBg, color: C.text, border: `1px solid ${C.border}`, borderRadius: 7, padding: '5px 8px', fontSize: 12.5,
+                              }}>
+                                <option value="">— pick —</option>
+                                {plans.map(p => <option key={p.code} value={p.code}>{p.name} ₹{p.price_inr}</option>)}
+                              </select>
+                              <Btn onClick={() => recordPayment(u.id)} loading={busy === 'p' + u.id} style={{ padding: '6px 12px', fontSize: 12 }}>Record</Btn>
+                            </div>
+                          </td>
+                          <td>
+                            <Btn variant={u.status === 'active' ? 'danger' : 'primary'} loading={busy === 'u' + u.id} onClick={() => toggle(u)} style={{ padding: '6px 12px', fontSize: 12 }}>
+                              {u.status === 'active' ? 'Suspend' : 'Activate'}
+                            </Btn>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {users.length === 0 && <tr><td colSpan="8" style={{ textAlign: 'center', padding: 40, color: C.faint }}>No lenders yet</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {tab === 'leads' && (
+            <div style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
+              <div className="tbl-wrap">
+                <table>
+                  <thead><tr><th>ID</th><th>When</th><th>Name</th><th>Email</th><th>Phone</th><th>Company</th><th>Message</th></tr></thead>
+                  <tbody>
+                    {leads.map(l => (
+                      <tr key={l.id}>
+                        <td>#{l.id}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>{(l.created_at || '').slice(0,10)}</td>
+                        <td style={{ fontWeight: 600 }}>{l.name}</td>
+                        <td>{l.email || '—'}</td>
+                        <td>{l.phone || '—'}</td>
+                        <td>{l.company || '—'}</td>
+                        <td style={{ maxWidth: 240, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={l.message}>{l.message || '—'}</td>
+                      </tr>
+                    ))}
+                    {leads.length === 0 && <tr><td colSpan="7" style={{ textAlign: 'center', padding: 40, color: C.faint }}>No signup requests</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {tab === 'payments' && (
+            <div style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
+              <div className="tbl-wrap">
+                <table>
+                  <thead><tr><th>ID</th><th>Date</th><th>User</th><th>Plan</th><th>Amount</th><th>Provider</th><th>Status</th></tr></thead>
+                  <tbody>
+                    {payments.map(p => (
+                      <tr key={p.id}>
+                        <td>#{p.id}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>{(p.paid_at || p.created_at || '').slice(0,10)}</td>
+                        <td>{p.user_name || p.user_id}</td>
+                        <td>{p.plan_code}</td>
+                        <td>₹{Number(p.amount_inr).toLocaleString('en-IN')}</td>
+                        <td>{p.provider}</td>
+                        <td>
+                          <span style={{ padding:'2px 9px', borderRadius:14, fontSize:11, fontWeight:700,
+                            background: p.status === 'success' ? C.successLight : C.errorLight,
+                            color: p.status === 'success' ? C.success : C.error }}>{p.status.toUpperCase()}</span>
+                        </td>
+                      </tr>
+                    ))}
+                    {payments.length === 0 && <tr><td colSpan="7" style={{ textAlign: 'center', padding: 40, color: C.faint }}>No payments yet</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -1217,7 +1641,7 @@
 
   // ──────────────────────────────────────────────────────────────────────────
 
-  function HomePage({ onNavigate, onLogout }) {
+  function HomePage({ onNavigate, onLogout, onBilling }) {
     const { C, dark, toggle } = useTheme();
     const { t } = useLang();
     const dateStr = new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
@@ -1226,6 +1650,7 @@
       { key: 'view',      icon: '📋', bg: C.cyan,        title: t('viewAllCases'),    desc: 'Browse, search and filter all records. Click any row for details or to close.' },
       { key: 'existing',  icon: '📂', bg: C.green,       title: t('addExistingCase'), desc: 'Digitise an old record. Enter the original loan date & time manually.' },
       { key: 'dashboard', icon: '📊', bg: C.violet,      title: t('dashboard'),       desc: 'Charts, KPIs, trends, bad debts, top borrowers and full portfolio overview.' },
+      { key: 'billing',   icon: '💳', bg: C.amber,       title: 'Billing & Subscription', desc: 'Manage your plan, view payment history and upgrade.' },
     ];
     return (
       <div style={{ minHeight: '100vh', background: C.bg, transition: 'background-color 0.3s' }}>
@@ -2056,7 +2481,7 @@
   // ── App root ───────────────────────────────────────────────────────────────
 
   function App() {
-    const [auth, setAuth] = useState(null);
+    const [me, setMe]     = useState(null);     // { authenticated, user, subscription }
     const [page, setPage] = useState('home');
 
     // Persist language in localStorage
@@ -2073,7 +2498,6 @@
     const [dark, setDark] = useState(() => {
       try { return localStorage.getItem('loantrack-theme') === 'dark'; } catch { return false; }
     });
-
     const toggle = () => {
       setDark(d => {
         const next = !d;
@@ -2081,45 +2505,60 @@
         return next;
       });
     };
+    useEffect(() => { document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light'); }, [dark]);
+    useEffect(() => { document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light'); }, []);
 
-    // Keep <html> data-theme in sync for CSS variables
-    useEffect(() => {
-      document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
-    }, [dark]);
-
-    // Set initial theme attribute on mount
-    useEffect(() => {
-      document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    const refreshMe = useCallback(async () => {
+      try {
+        const d = await api.get('/api/auth/me');
+        setMe(d);
+      } catch { setMe({ authenticated: false }); }
     }, []);
-
-    useEffect(() => {
-      api.get('/api/check-auth')
-        .then(d => setAuth(d.authenticated))
-        .catch(() => setAuth(false));
-    }, []);
+    useEffect(() => { refreshMe(); }, [refreshMe]);
 
     const logout = async () => {
-      await api.post('/api/logout', {}).catch(() => {});
-      setAuth(false); setPage('home');
+      await api.post('/api/auth/logout', {}).catch(() => {});
+      setMe({ authenticated: false }); setPage('home');
     };
 
     const C = dark ? DARK : LIGHT;
 
-    if (auth === null) return (
+    if (me === null) return (
       <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.faint }}>
         Loading…
       </div>
     );
 
+    const auth = !!me.authenticated;
+    const user = me.user;
+    const sub  = me.subscription;
+    const isUser  = user?.role === 'user';
+    const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+
+    // Force tenants to billing if their subscription expired
+    const forceBilling = isUser && sub && !sub.active;
+    const effectivePage = forceBilling ? 'billing' : page;
+
     return (
       <LangCtx.Provider value={{ lang, setLang, t }}>
       <ThemeCtx.Provider value={{ C, dark, toggle }}>
-        {!auth && <LandingPage onLogin={() => setAuth(true)} />}
-        {auth && page === 'home'      && <HomePage     onNavigate={setPage} onLogout={logout} />}
-        {auth && page === 'add'       && <AddCasePage  onBack={() => setPage('home')} isExisting={false} onLogout={logout} />}
-        {auth && page === 'existing'  && <AddCasePage  onBack={() => setPage('home')} isExisting={true}  onLogout={logout} />}
-        {auth && page === 'view'      && <ViewCasesPage onBack={() => setPage('home')} onLogout={logout} />}
-        {auth && page === 'dashboard' && <DashboardPage onBack={() => setPage('home')} onLogout={logout} />}
+        {!auth && <LandingPage onLogin={refreshMe} />}
+
+        {auth && isAdmin && <AdminConsole user={user} onLogout={logout} />}
+
+        {auth && isUser && (
+          <>
+            {effectivePage !== 'billing' && (
+              <SubBanner sub={sub} onUpgrade={() => setPage('billing')} />
+            )}
+            {effectivePage === 'home'      && <HomePage      onNavigate={setPage} onLogout={logout} onBilling={() => setPage('billing')} />}
+            {effectivePage === 'add'       && <AddCasePage   onBack={() => setPage('home')} isExisting={false} onLogout={logout} />}
+            {effectivePage === 'existing'  && <AddCasePage   onBack={() => setPage('home')} isExisting={true}  onLogout={logout} />}
+            {effectivePage === 'view'      && <ViewCasesPage onBack={() => setPage('home')} onLogout={logout} />}
+            {effectivePage === 'dashboard' && <DashboardPage onBack={() => setPage('home')} onLogout={logout} />}
+            {effectivePage === 'billing'   && <BillingPage   onBack={() => setPage('home')} onLogout={logout} onPaid={refreshMe} />}
+          </>
+        )}
       </ThemeCtx.Provider>
       </LangCtx.Provider>
     );
