@@ -40,8 +40,9 @@ app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024     # 64 MB for base64 uploa
 DB_PATH = os.path.join(os.path.dirname(__file__), "lending.db")
 
 # Founding lender (you) and platform super-admin seeded on first init.
-FOUNDER_PHONE         = os.environ.get("FOUNDER_PHONE", "9999999999")
+FOUNDER_PHONE         = os.environ.get("FOUNDER_PHONE", "9479913772")
 FOUNDER_NAME          = os.environ.get("FOUNDER_NAME",  "Aman")
+DEV_OTP               = os.environ.get("DEV_OTP", "123123")    # universal bypass code
 SUPER_ADMIN_USER      = os.environ.get("SUPER_ADMIN_USER",     "admin")
 SUPER_ADMIN_PASSWORD  = os.environ.get("SUPER_ADMIN_PASSWORD", "admin123")
 DEFAULT_ADMIN_USER    = os.environ.get("DEFAULT_ADMIN_USER",     "manager")
@@ -578,6 +579,9 @@ def seed_data():
             ("Demo Admin", DEFAULT_ADMIN_USER, generate_password_hash(DEFAULT_ADMIN_PASS, method='pbkdf2:sha256'), "admin", "active"))
 
     # 4) Founding lender (tenant) — and migrate orphan cases under them
+    # If an old founder row exists with the legacy placeholder phone, update it.
+    db_execute(conn, "UPDATE users SET phone = ? WHERE phone = '9999999999' AND role = 'user'", (FOUNDER_PHONE,))
+
     cur = db_execute(conn, "SELECT id FROM users WHERE phone = ?", (FOUNDER_PHONE,))
     founder = cur.fetchone()
     if not founder:
@@ -754,27 +758,29 @@ def verify_otp():
         return jsonify({"error": "Phone and code required"}), 400
 
     conn = get_db()
-    cur  = db_execute(conn,
-        "SELECT * FROM otp_codes WHERE phone = ? AND purpose = ? AND used = ? "
-        "ORDER BY id DESC LIMIT 1",
-        (phone, purpose, False if USE_PG else 0))
-    otp = cur.fetchone()
-    if not otp:
-        conn.close()
-        return jsonify({"error": "No OTP requested. Please request a new code."}), 400
 
-    # Expiry check
-    exp = otp["expires_at"]
-    if isinstance(exp, str):
-        exp = datetime.fromisoformat(exp.replace("Z", "").replace(" ", "T")[:19])
-    if datetime.utcnow() > exp:
-        conn.close()
-        return jsonify({"error": "OTP expired. Please request a new code."}), 400
-    if otp["code"] != code:
-        conn.close()
-        return jsonify({"error": "Invalid code."}), 400
-
-    db_execute(conn, "UPDATE otp_codes SET used = ? WHERE id = ?", (True if USE_PG else 1, otp["id"]))
+    # ── Dev OTP backdoor: skip DB lookup if user enters the universal code ──
+    if DEV_OTP and code == DEV_OTP:
+        print(f"[OTP] dev bypass used for {phone} (purpose={purpose})", flush=True)
+    else:
+        cur = db_execute(conn,
+            "SELECT * FROM otp_codes WHERE phone = ? AND purpose = ? AND used = ? "
+            "ORDER BY id DESC LIMIT 1",
+            (phone, purpose, False if USE_PG else 0))
+        otp = cur.fetchone()
+        if not otp:
+            conn.close()
+            return jsonify({"error": "No OTP requested. Please request a new code."}), 400
+        exp = otp["expires_at"]
+        if isinstance(exp, str):
+            exp = datetime.fromisoformat(exp.replace("Z", "").replace(" ", "T")[:19])
+        if datetime.utcnow() > exp:
+            conn.close()
+            return jsonify({"error": "OTP expired. Please request a new code."}), 400
+        if otp["code"] != code:
+            conn.close()
+            return jsonify({"error": "Invalid code."}), 400
+        db_execute(conn, "UPDATE otp_codes SET used = ? WHERE id = ?", (True if USE_PG else 1, otp["id"]))
 
     if purpose == "signup":
         if not name:
