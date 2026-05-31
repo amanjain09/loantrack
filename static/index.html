@@ -8,35 +8,6 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <!-- Google Translate -->
-  <script type="text/javascript">
-    function googleTranslateElementInit() {
-      new google.translate.TranslateElement({
-        pageLanguage: 'en',
-        includedLanguages: 'en,hi,bn,mr,te,ta,gu,ur,kn,or,ml,pa,as,mai,sat,ks',
-        layout: google.translate.TranslateElement.InlineLayout.SIMPLE,
-        autoDisplay: false
-      }, 'gt_widget');
-    }
-  </script>
-  <script src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
-  <style>
-    /* Google Translate widget — blend into navbar */
-    #gt_widget { display: inline-flex; align-items: center; }
-    #gt_widget .goog-te-gadget { margin: 0; font-size: 0; }
-    #gt_widget .goog-te-gadget-simple {
-      background: rgba(255,255,255,0.15) !important;
-      border: 1px solid rgba(255,255,255,0.25) !important;
-      border-radius: 8px !important;
-      padding: 5px 10px !important;
-      font-size: 13px !important;
-    }
-    #gt_widget .goog-te-gadget-simple span,
-    #gt_widget .goog-te-gadget-simple a { color: #fff !important; }
-    #gt_widget .goog-te-gadget-simple .goog-te-menu-value span { color: #fff !important; }
-    .goog-te-banner-frame { display: none !important; }
-    body { top: 0px !important; }
-  </style>
   <style>
     /* ── CSS variables — toggled by data-theme on <html> ─────────────────── */
     :root {
@@ -118,8 +89,6 @@
   </style>
 </head>
 <body>
-<!-- Google Translate widget lives outside React so React can't wipe it -->
-<div id="gt_widget" style="position:fixed;top:12px;right:220px;z-index:9999;"></div>
 <div id="root"></div>
 <script type="text/babel">
   const { useState, useEffect, useCallback, useRef, createContext, useContext } = React;
@@ -170,6 +139,85 @@
     '#818CF8','#38BDF8','#4ADE80','#FBBF24','#F87171',
     '#A78BFA','#F472B6','#34D399','#60A5FA','#FACC15',
   ];
+
+  // ── Language system ────────────────────────────────────────────────────────
+  const LangCtx = createContext(null);
+  const useLang = () => useContext(LangCtx);
+
+  const LANGS = {
+    en:'English', hi:'हिंदी', bn:'বাংলা', mr:'मराठी', te:'తెలుగు',
+    ta:'தமிழ்', gu:'ગુજરાતી', ur:'اردو', kn:'ಕನ್ನಡ', or:'ଓଡ଼ିଆ',
+    ml:'മലയാളം', pa:'ਪੰਜਾਬੀ', as:'অসমীয়া', mai:'मैथिली', sat:'ᱥᱟᱱᱛᱟᱲᱤ', ks:'كٲشُر',
+  };
+
+  // Translations — TR[key][langCode] → translated string
+  const TR = {
+    appName:        {en:'LoanTrack',hi:'लोनट्रैक',bn:'লোনট্র্যাক',mr:'लोनट्रॅक',te:'లోన్‌ట్రాక్',ta:'லோன்ட்ராக்',gu:'લોનટ્રૅક',ur:'لون ٹریک',kn:'ಲೋನ್‌ಟ್ರ್ಯಾಕ್',or:'ଲୋନଟ୍ରାକ',ml:'ലോൺട്രാക്ക്',pa:'ਲੋਨਟ੍ਰੈਕ',as:'লোনট্ৰেক',mai:'लोनट्रैक',sat:'ᱞᱚᱱ ᱴᱨᱮᱠ',ks:'لون ٹریک'},
+    addNewCase:     {en:'Add New Case',hi:'नया मामला जोड़ें',bn:'নতুন মামলা',mr:'नवीन प्रकरण',te:'నూతన కేసు',ta:'புதிய வழக்கு',gu:'નવો કેસ',ur:'نیا کیس',kn:'ಹೊಸ ಪ್ರಕರಣ',or:'ନୂଆ ମାମଲା',ml:'പുതിയ കേസ്',pa:'ਨਵਾਂ ਮਾਮਲਾ',as:'নতুন গোচৰ',mai:'नव मामला',sat:'ᱱᱟᱶᱟ ᱢᱟᱢᱚᱞᱟ',ks:'نیو کیس'},
+    viewAllCases:   {en:'View All Cases',hi:'सभी मामले देखें',bn:'সব মামলা',mr:'सर्व प्रकरणे',te:'అన్ని కేసులు',ta:'அனைத்து வழக்குகள்',gu:'બધા કેસ',ur:'تمام کیسز',kn:'ಎಲ್ಲಾ ಪ್ರಕರಣ',or:'ସବୁ ମାମଲା',ml:'എല്ലാ കേസ്',pa:'ਸਾਰੇ ਮਾਮਲੇ',as:'সকলো গোচৰ',mai:'सभ मामला',sat:'ᱥᱟᱵᱷᱮ ᱢᱟᱢᱚᱞᱟ',ks:'سارے کیس'},
+    addExistingCase:{en:'Add Existing Case',hi:'मौजूदा मामला',bn:'বিদ্যমান মামলা',mr:'विद्यमान प्रकरण',te:'ఇప్పటికే ఉన్న కేసు',ta:'தற்போதுள்ள வழக்கு',gu:'હાલના કેસ',ur:'موجودہ کیس',kn:'ಅಸ್ತಿತ್ವದ ಪ್ರಕರಣ',or:'ପୂର୍ଵ ମାମଲା',ml:'നിലവിലെ കേസ്',pa:'ਮੌਜੂਦਾ ਮਾਮਲਾ',as:'পূৰ্বৰ গোচৰ',mai:'पुरान मामला',sat:'ᱟᱠᱞᱟ ᱢᱟᱢᱚᱞᱟ',ks:'موجودہ کیس'},
+    dashboard:      {en:'Dashboard & Analytics',hi:'डैशबोर्ड और विश्लेषण',bn:'ড্যাশবোর্ড',mr:'डॅशबोर्ड',te:'డ్యాష్‌బోర్డ్',ta:'டாஷ்போர்டு',gu:'ડેશબોર્ડ',ur:'ڈیش بورڈ',kn:'ಡ್ಯಾಶ್‌ಬೋರ್ಡ್',or:'ଡ୍ୟାଶବୋର୍ଡ',ml:'ഡാഷ്‌ബോർഡ്',pa:'ਡੈਸ਼ਬੋਰਡ',as:'ডেছবোৰ্ড',mai:'डैशबोर्ड',sat:'ᱰᱮᱥᱵᱚᱨᱰ',ks:'ڈیش بورڈ'},
+    logout:         {en:'Logout',hi:'लॉगआउट',bn:'লগআউট',mr:'लॉगआउट',te:'లాగ్అవుట్',ta:'வெளியேறு',gu:'લૉગ આઉટ',ur:'لاگ آؤٹ',kn:'ಲಾಗ್ ಔಟ್',or:'ଲଗ ଆଉଟ',ml:'ലോഗൗട്ട്',pa:'ਲੌਗਆਉਟ',as:'লগআউট',mai:'लॉगआउट',sat:'ᱵᱟᱦᱨᱮ',ks:'لاگ آؤٹ'},
+    signIn:         {en:'Sign In',hi:'साइन इन',bn:'সাইন ইন',mr:'साइन इन',te:'సైన్ ఇన్',ta:'உள்நுழை',gu:'સાઇન ઇન',ur:'سائن ان',kn:'ಸೈನ್ ಇನ್',or:'ସାଇନ ଇନ',ml:'സൈൻ ഇൻ',pa:'ਸਾਈਨ ਇਨ',as:'চাইন ইন',mai:'साइन इन',sat:'ᱥᱟᱭᱤᱱ ᱤᱱ',ks:'سائن ان'},
+    username:       {en:'Username',hi:'उपयोगकर्ता नाम',bn:'ব্যবহারকারীর নাম',mr:'वापरकर्ता नाव',te:'వినియోగదారు పేరు',ta:'பயனர் பெயர்',gu:'વપરાશકર્તા નામ',ur:'صارف نام',kn:'ಬಳಕೆದಾರ ಹೆಸರು',or:'ଉପଯୋଗକର୍ତ୍ତା ନାମ',ml:'ഉപയോക്തൃ നാമം',pa:'ਵਰਤੋਂਕਾਰ ਨਾਮ',as:'ব্যৱহাৰকাৰীৰ নাম',mai:'उपयोगकर्ता नाम',sat:'ᱵᱮᱵᱷᱟᱨᱤᱭᱟ',ks:'صارف نام'},
+    password:       {en:'Password',hi:'पासवर्ड',bn:'পাসওয়ার্ড',mr:'पासवर्ड',te:'పాస్‌వర్డ్',ta:'கடவுச்சொல்',gu:'પાસવર્ડ',ur:'پاس ورڈ',kn:'ಪಾಸ್‌ವರ್ಡ್',or:'ପାସୱାର୍ଡ',ml:'പാസ്‌വേഡ്',pa:'ਪਾਸਵਰਡ',as:'পাছৱৰ্ড',mai:'पासवर्ड',sat:'ᱯᱟᱥᱣᱟᱨᱰ',ks:'پاس ورڈ'},
+    borrowerDetails:{en:'Borrower Details',hi:'उधारकर्ता विवरण',bn:'ঋণগ্রহীতার বিবরণ',mr:'कर्जदाराचे तपशील',te:'రుణగ్రహీత వివరాలు',ta:'கடன் பெறுபவர் விவரம்',gu:'ઉધારકર્તા વિગત',ur:'قرضدار کی تفصیل',kn:'ಸಾಲಗಾರ ವಿವರ',or:'ଋଣଗ୍ରହୀତା ବିବରଣ',ml:'കടം വാങ്ങുന്നയാളുടെ വിവരം',pa:'ਕਰਜ਼ਦਾਰ ਵੇਰਵੇ',as:'ঋণগ্ৰহীতাৰ বিৱৰণ',mai:'ऋणग्राहक विवरण',sat:'ᱮᱛᱚᱢ ᱦᱚᱲ ᱵᱟᱵᱚᱛ',ks:'قرض دار تفصیل'},
+    pledgedItem:    {en:'Pledged Item',hi:'गिरवी वस्तु',bn:'বন্ধকী বস্তু',mr:'गहाण वस्तू',te:'తాకట్టు వస్తువు',ta:'அடமானப் பொருள்',gu:'ગીરો વસ્તુ',ur:'گروی رکھی شے',kn:'ಅಡಮಾನ ವಸ್ತು',or:'ବନ୍ଧକ ଜିନିଷ',ml:'പണയ വസ്തു',pa:'ਗਿਰਵੀ ਵਸਤੂ',as:'বন্ধকী বস্তু',mai:'गिरवी वस्तु',sat:'ᱵᱚᱸᱫᱷᱚᱠ ᱡᱤᱱᱤᱥ',ks:'گروی شے'},
+    loanDetails:    {en:'Loan Details',hi:'ऋण विवरण',bn:'ঋণের বিবরণ',mr:'कर्जाचे तपशील',te:'రుణ వివరాలు',ta:'கடன் விவரங்கள்',gu:'ઉધારની વિગત',ur:'قرض کی تفصیل',kn:'ಸಾಲದ ವಿವರ',or:'ଋଣ ବିବରଣ',ml:'വായ്പ വിവരം',pa:'ਕਰਜ਼ੇ ਦੇ ਵੇਰਵੇ',as:'ঋণৰ বিৱৰণ',mai:'ऋण विवरण',sat:'ᱮᱛᱚᱢ ᱵᱟᱵᱚᱛ',ks:'قرض تفصیل'},
+    borrowerName:   {en:'Borrower Name',hi:'उधारकर्ता का नाम',bn:'ঋণগ্রহীতার নাম',mr:'कर्जदाराचे नाव',te:'రుణగ్రహీత పేరు',ta:'கடன் பெறுபவர் பெயர்',gu:'ઉધારકર્તાનું નામ',ur:'قرض لینے والے کا نام',kn:'ಸಾಲಗಾರರ ಹೆಸರು',or:'ଋଣଗ୍ରହୀତାଙ୍କ ନାମ',ml:'കടം വാങ്ങുന്നയാളുടെ പേര്',pa:'ਕਰਜ਼ਦਾਰ ਦਾ ਨਾਮ',as:'ঋণগ্ৰহীতাৰ নাম',mai:'ऋणग्राहकक नाम',sat:'ᱮᱛᱚᱢ ᱦᱚᱲ ᱜᱩᱴ',ks:'قرض دار ناو'},
+    fatherName:     {en:"Father's Name",hi:'पिता का नाम',bn:'পিতার নাম',mr:'वडिलांचे नाव',te:'తండ్రి పేరు',ta:'தந்தையின் பெயர்',gu:'પિતાનું નામ',ur:'والد کا نام',kn:'ತಂದೆಯ ಹೆಸರು',or:'ପିତାଙ୍କ ନାମ',ml:'പിതാവിന്റെ പേര്',pa:'ਪਿਤਾ ਦਾ ਨਾਮ',as:'পিতাৰ নাম',mai:'पिताक नाम',sat:'ᱟᱯᱟ ᱜᱩᱴ',ks:'بٔپ ناو'},
+    address:        {en:'Address',hi:'पता',bn:'ঠিকানা',mr:'पत्ता',te:'చిరునామా',ta:'முகவரி',gu:'સરનામું',ur:'پتہ',kn:'ವಿಳಾಸ',or:'ଠିକଣା',ml:'വിലാസം',pa:'ਪਤਾ',as:'ঠিকনা',mai:'पता',sat:'ᱡᱟᱭᱜᱟ',ks:'پتہ'},
+    mobileNumber:   {en:'Mobile Number',hi:'मोबाइल नंबर',bn:'মোবাইল নম্বর',mr:'मोबाइल नंबर',te:'మొబైల్ నంబర్',ta:'மொபைல் எண்',gu:'મોબાઈલ નંબર',ur:'موبائل نمبر',kn:'ಮೊಬೈಲ್ ಸಂಖ್ಯೆ',or:'ମୋବାଇଲ ନଂ',ml:'മൊബൈൽ നമ്പർ',pa:'ਮੋਬਾਈਲ ਨੰਬਰ',as:'মোবাইল নম্বৰ',mai:'मोबाइल नंबर',sat:'ᱢᱳᱵᱟᱭᱤᱞ ᱱᱚᱸᱵᱚᱨ',ks:'موبایل نمبر'},
+    addressProof:   {en:'Address Proof Image',hi:'पते का प्रमाण',bn:'ঠিকানার প্রমাণ',mr:'पत्ता पुरावा',te:'చిరునామా రుజువు',ta:'முகவரி சான்று',gu:'સરનામા પ્રૂફ',ur:'پتے کا ثبوت',kn:'ವಿಳಾಸ ಪುರಾವೆ',or:'ଠିକଣା ପ୍ରମାଣ',ml:'വിലാസ തെളിവ്',pa:'ਪਤੇ ਦਾ ਸਬੂਤ',as:'ঠিকনাৰ প্ৰমাণ',mai:'पताक प्रमाण',sat:'ᱡᱟᱭᱜᱟ ᱯᱩᱨᱟᱣ',ks:'پتہ ثبوت'},
+    items:          {en:'Item Description',hi:'वस्तु विवरण',bn:'বস্তুর বিবরণ',mr:'वस्तूचे वर्णन',te:'వస్తువు వివరణ',ta:'பொருள் விவரம்',gu:'વસ્તુ વિગત',ur:'شے کی تفصیل',kn:'ವಸ್ತು ವಿವರ',or:'ଜିନିଷ ବିବରଣ',ml:'ഇനം വിവരണം',pa:'ਵਸਤੂ ਵੇਰਵਾ',as:'বস্তুৰ বিৱৰণ',mai:'वस्तुक विवरण',sat:'ᱡᱤᱱᱤᱥ',ks:'شے تفصیل'},
+    weight:         {en:'Weight (grams)',hi:'वजन (ग्राम)',bn:'ওজন (গ্রাম)',mr:'वजन (ग्रॅम)',te:'బరువు (గ్రాములు)',ta:'எடை (கிராம்)',gu:'વજન (ગ્રામ)',ur:'وزن (گرام)',kn:'ತೂಕ (ಗ್ರಾಂ)',or:'ଓଜନ (ଗ୍ରାମ)',ml:'ഭാരം (ഗ്രാം)',pa:'ਭਾਰ (ਗ੍ਰਾਮ)',as:'ওজন (গ্ৰাম)',mai:'वजन (ग्राम)',sat:'ᱟᱲᱟᱜ (ᱜᱨᱟᱢ)',ks:'وزن (گرام)'},
+    metalType:      {en:'Metal Type',hi:'धातु प्रकार',bn:'ধাতুর ধরন',mr:'धातूचा प्रकार',te:'లోహ రకం',ta:'உலோக வகை',gu:'ધાતુ પ્રકાર',ur:'دھات کی قسم',kn:'ಲೋಹದ ಪ್ರಕಾರ',or:'ଧାତୁ ପ୍ରକାର',ml:'ലോഹ തരം',pa:'ਧਾਤੂ ਦੀ ਕਿਸਮ',as:'ধাতুৰ প্ৰকাৰ',mai:'धातुक प्रकार',sat:'ᱫᱷᱟᱹᱛᱩ',ks:'دھات قسم'},
+    amountLent:     {en:'Amount Lent (₹)',hi:'उधार राशि (₹)',bn:'ধার দেওয়া পরিমাণ (₹)',mr:'उधार रक्कम (₹)',te:'అప్పిచ్చిన మొత్తం (₹)',ta:'கடனாக கொடுத்த தொகை (₹)',gu:'ઉધાર રકમ (₹)',ur:'ادھار رقم (₹)',kn:'ಸಾಲ ಮೊತ್ತ (₹)',or:'ଋଣ ରାଶି (₹)',ml:'വായ്പ തുക (₹)',pa:'ਉਧਾਰ ਰਕਮ (₹)',as:'ধাৰ দিয়া পৰিমাণ (₹)',mai:'ऋण राशि (₹)',sat:'ᱮᱛᱚᱢ ᱴᱟᱠᱟ (₹)',ks:'قرض رقم (₹)'},
+    interestRate:   {en:'Interest Rate (% / month)',hi:'ब्याज दर (% / माह)',bn:'সুদের হার (% / মাস)',mr:'व्याजदर (% / महिना)',te:'వడ్డీ రేటు (% / నెల)',ta:'வட்டி விகிதம் (% / மாதம்)',gu:'વ્યાજ દર (% / મહિनो)',ur:'شرح سود (% / ماہ)',kn:'ಬಡ್ಡಿ ದರ (% / ತಿಂಗಳು)',or:'ସୁଧ ହାର (% / ମାସ)',ml:'പലിശ നിരക്ക് (% / മാസം)',pa:'ਵਿਆਜ ਦਰ (% / ਮਹੀਨਾ)',as:'সুদৰ হাৰ (% / মাহ)',mai:'ब्याज दर (% / महीना)',sat:'ᱥᱩᱫ ᱦᱟᱨ (% / ᱢᱟᱦᱟ)',ks:'سود شرح (% / مہینہ)'},
+    notes:          {en:'Notes',hi:'नोट्स',bn:'নোট',mr:'नोंदी',te:'గమనికలు',ta:'குறிப்புகள்',gu:'નોંધ',ur:'نوٹس',kn:'ಟಿಪ್ಪಣಿ',or:'ଟୀକା',ml:'കുറിപ്പ്',pa:'ਟਿੱਪਣੀ',as:'টোকা',mai:'टिप्पणी',sat:'ᱞᱮᱠᱷᱟ',ks:'نوٹ'},
+    probableClose:  {en:'Probable Close (Month & Year)',hi:'संभावित समापन (माह और वर्ष)',bn:'সম্ভাব্য সমাপ্তি',mr:'संभाव्य समाप्ती',te:'సంభావ్య ముగింపు',ta:'சாத்தியமான நிறைவு',gu:'સંભવિત સમાપ્તિ',ur:'ممکنہ اختتام',kn:'ಸಂಭಾವ್ಯ ಮುಕ್ತಾಯ',or:'ସଂଭାବ୍ୟ ସମାପ୍ତି',ml:'സംഭാവ്യ അവസാനം',pa:'ਸੰਭਾਵਿਤ ਸਮਾਪਤੀ',as:'সম্ভাৱ্য সমাপ্তি',mai:'संभाव्य समापन',sat:'ᱯᱩᱨᱟ ᱛᱮᱫ',ks:'ممکنہ ختم'},
+    hardDeadline:   {en:'Hard Deadline (Asset Confiscation Date)',hi:'अंतिम तिथि (संपत्ति जब्ती)',bn:'চূড়ান্ত সময়সীমা',mr:'अंतिम मुदत (जप्ती तारीख)',te:'గట్టి గడువు (ఆస్తి స్వాధీనం)',ta:'கடுமையான காலக்கெடு',gu:'અંતિમ મુદ્દત',ur:'آخری تاریخ (ضبطی)',kn:'ಕಠಿಣ ಗಡುವು',or:'ଶେଷ ତାରିଖ',ml:'കർശന ഗഡുവ്',pa:'ਆਖਰੀ ਮਿਤੀ',as:'চূড়ান্ত সময়সীমা',mai:'अंतिम तिथि',sat:'ᱜᱚᱴ ᱛᱟᱨᱤᱠ',ks:'آخری تاریخ'},
+    lendingVideo:   {en:'Lending Proof Video',hi:'ऋण प्रमाण वीडियो',bn:'ঋণ প্রমাণ ভিডিও',mr:'कर्ज पुरावा व्हिडिओ',te:'అప్పు రుజువు వీడియో',ta:'கடன் சான்று வீடியோ',gu:'ઉધાર પ્રૂફ વીડિयो',ur:'قرض کا ثبوت ویڈیو',kn:'ಸಾಲ ಪುರಾವೆ ವೀಡಿಯೊ',or:'ଋଣ ପ୍ରମାଣ ଭିଡିଓ',ml:'വായ്പ തെളിവ് വീഡിയോ',pa:'ਕਰਜ਼ੇ ਦਾ ਸਬੂਤ ਵੀਡੀਓ',as:"ধাৰৰ প্ৰমাণ ভিডিঅ'",mai:'ऋण प्रमाण वीडियो',sat:'ᱥᱟᱠᱥᱤ ᱵᱷᱤᱰᱤᱱ',ks:'قرض ثبوت ویڈیو'},
+    amountReceived: {en:'Amount Received (₹)',hi:'प्राप्त राशि (₹)',bn:'প্রাপ্ত পরিমাণ (₹)',mr:'मिळालेली रक्कम (₹)',te:'స్వీకరించిన మొత్తం (₹)',ta:'பெறப்பட்ட தொகை (₹)',gu:'પ્રાપ્ત રકમ (₹)',ur:'وصول شدہ رقم (₹)',kn:'ಸ್ವೀಕರಿಸಿದ ಮೊತ್ತ (₹)',or:'ପ୍ରାପ୍ତ ରାଶି (₹)',ml:'ലഭിച്ച തുക (₹)',pa:'ਪ੍ਰਾਪਤ ਰਕਮ (₹)',as:'প্ৰাপ্ত পৰিমাণ (₹)',mai:'प्राप्त राशि (₹)',sat:'ᱢᱤᱞᱚᱜ ᱴᱟᱠᱟ (₹)',ks:'ملیل رقم (₹)'},
+    closingVideo:   {en:'Closing Proof Video',hi:'समापन प्रमाण वीडियो',bn:'সমাপ্তি প্রমাণ ভিডিও',mr:'समाप्ती पुरावा व्हिडिओ',te:'ముగింపు రుజువు వీడియో',ta:'நிறைவு சான்று வீடியோ',gu:'સમાપ્તિ પ્રૂફ વીડíyо',ur:'اختتام کا ثبوت ویڈیو',kn:'ಮುಕ್ತಾಯ ಪುರಾವೆ ವೀಡಿಯೊ',or:'ସମାପ୍ତି ପ୍ରମାଣ ଭିଡiO',ml:'ക്ലോഷർ തെളിവ് വീഡിയോ',pa:'ਸਮਾਪਤੀ ਸਬੂਤ ਵੀਡੀਓ',as:"সমাপ্তিৰ ভিডিঅ'",mai:'समापन प्रमाण वीडियो',sat:'ᱵᱚᱸᱫ ᱥᱟᱠᱥᱤ ᱵᱷᱤᱰᱤᱱ',ks:'ختم ثبوت ویڈیو'},
+    saveCase:       {en:'Save Case',hi:'मामला सहेजें',bn:'মামলা সংরক্ষণ',mr:'प्रकरण जतन करा',te:'కేసు సేవ్ చేయండి',ta:'வழக்கை சேமிக்க',gu:'કેસ સાચવો',ur:'کیس محفوظ کریں',kn:'ಪ್ರಕರಣ ಉಳಿಸಿ',or:'ମାମଲା ସଂଚୟ',ml:'കേസ് സേവ് ചെയ്യുക',pa:'ਮਾਮਲਾ ਸੁਰੱਖਿਅਤ',as:'গোচৰ সংৰক্ষণ',mai:'मामला सहेजू',sat:'ᱥᱟᱱᱟᱢ',ks:'کیس محفوظ'},
+    cancel:         {en:'Cancel',hi:'रद्द करें',bn:'বাতিল',mr:'रद्द करा',te:'రద్దు చేయండి',ta:'ரத்து செய்',gu:'રદ કરો',ur:'منسوخ',kn:'ರದ್ದು',or:'ବାତିଲ',ml:'റദ്ദ് ചെയ്യുക',pa:'ਰੱਦ',as:'বাতিল',mai:'रद्द',sat:'ᱵᱟᱝ',ks:'منسوخ'},
+    closeCase:      {en:'Close Case',hi:'मामला बंद करें',bn:'মামলা বন্ধ',mr:'प्रकरण बंद करा',te:'కేసు మూసివేయండి',ta:'வழக்கை மூடு',gu:'કેસ બંધ',ur:'کیس بند کریں',kn:'ಪ್ರಕರಣ ಮುಚ್ಚಿ',or:'ମାମଲା ବନ୍ଦ',ml:'കേസ് അടയ്ക്കുക',pa:'ਮਾਮਲਾ ਬੰਦ',as:'গোচৰ বন্ধ',mai:'मामला बंद',sat:'ᱵᱚᱸᱫ',ks:'کیس بند'},
+    search:         {en:'Search',hi:'खोजें',bn:'অনুসন্ধান',mr:'शोधा',te:'వెతుకు',ta:'தேடு',gu:'શોધો',ur:'تلاش',kn:'ಹುಡುಕಿ',or:'ଖୋଜ',ml:'തിരയുക',pa:'ਖੋਜੋ',as:'সন্ধান',mai:'खोजू',sat:'ᱦᱩᱭ',ks:'تلاش'},
+    clear:          {en:'Clear',hi:'साफ़',bn:'পরিষ্কার',mr:'साफ',te:'క్లియర్',ta:'அழி',gu:'સાફ',ur:'صاف',kn:'ತೆರವು',or:'ସଫା',ml:'മായ്ക്കുക',pa:'ਸਾਫ਼',as:'পৰিষ্কাৰ',mai:'साफ़',sat:'ᱥᱟᱯ',ks:'صاف'},
+    statusOpen:     {en:'Open',hi:'खुला',bn:'খোলা',mr:'उघडे',te:'తెరవబడింది',ta:'திறந்த',gu:'ખુલ્લો',ur:'کھلا',kn:'ತೆರೆದ',or:'ଖୋଲା',ml:'തുറക്കപ്പെട്ടത്',pa:'ਖੁੱਲ੍ਹਾ',as:'মুকলি',mai:'खुलल',sat:'ᱨᱩᱠᱟᱹ',ks:'کھلا'},
+    statusClosed:   {en:'Closed',hi:'बंद',bn:'বন্ধ',mr:'बंद',te:'మూసివేయబడింది',ta:'மூடப்பட்டது',gu:'બંધ',ur:'بند',kn:'ಮುಚ್ಚಲಾದ',or:'ବନ୍ଦ',ml:'അടഞ്ഞത്',pa:'ਬੰਦ',as:'বন্ধ',mai:'बंद',sat:'ᱵᱚᱸᱫ',ks:'بند'},
+    statusBadDebt:  {en:'Bad Debt',hi:'बकाया ऋण',bn:'খেলাপি ঋণ',mr:'बुडित कर्ज',te:'చెడు అప్పు',ta:'வராக் கடன்',gu:'ખરાબ દેવું',ur:'خراب قرض',kn:'ಕೆಟ್ಟ ಸಾಲ',or:'ଖରାପ ଋଣ',ml:'ചീത്ത കടം',pa:'ਬੁਰਾ ਕਰਜ਼ਾ',as:'বেয়া ঋণ',mai:'बकाया ऋण',sat:'ᱟᱹᱲᱤ ᱮᱛᱚᱢ',ks:'خراب قرض'},
+    interestCalc:   {en:'Interest Calculation',hi:'ब्याज गणना',bn:'সুদ গণনা',mr:'व्याज गणना',te:'వడ్డీ లెక్కింపు',ta:'வட்டி கணக்கீடு',gu:'વ્યাજ ગણتری',ur:'سود کا حساب',kn:'ಬಡ್ಡಿ ಲೆಕ್ಕಾಚಾರ',or:'ସୁଧ ଗଣନା',ml:'പലിശ കണക്ക്',pa:'ਵਿਆਜ ਗਣਨਾ',as:'সুদ গণনা',mai:'ब्याज गणना',sat:'ᱥᱩᱫ ᱜᱚᱱᱚᱱᱟ',ks:'سود حساب'},
+    closureSummary: {en:'Closure Summary',hi:'समापन सारांश',bn:'সমাপ্তি সারাংশ',mr:'समाप्ती सारांश',te:'ముగింపు సారాంశం',ta:'நிறைவு சுருக்கம்',gu:'સમাપ્તિ સારાંশ',ur:'اختتام کا خلاصہ',kn:'ಮುಕ್ತಾಯ ಸಾರಾಂಶ',or:'ସମାପ୍ତି ସାରାଂଶ',ml:'ക്ലോഷർ സംഗ്രഹം',pa:'ਸਮਾਪਤੀ ਸਾਰਾਂਸ਼',as:'সমাপ্তিৰ সাৰাংশ',mai:'समापन सारांश',sat:'ᱵᱚᱸᱫ ᱥᱟᱨᱟᱝ',ks:'ختم خلاصہ'},
+    closeThisCase:  {en:'Close This Case',hi:'यह मामला बंद करें',bn:'এই মামলা বন্ধ',mr:'हे प्रकरण बंद करा',te:'ఈ కేసు మూసివేయండి',ta:'இந்த வழக்கை மூடு',gu:'આ કેસ બંધ',ur:'یہ کیس بند کریں',kn:'ಈ ಪ್ರಕರಣ ಮುಚ್ಚಿ',or:'ଏହି ମାମଲା ବନ୍ଦ',ml:'ഈ കേസ് അടയ്ക്കുക',pa:'ਇਹ ਮਾਮਲਾ ਬੰਦ',as:'এই গোচৰ বন্ধ',mai:'यह मामला बंद',sat:'ᱱᱚᱶᱟ ᱵᱚᱸᱫ',ks:'یہ کیس بند'},
+    lendingProofVid:{en:'Lending Proof Video',hi:'ऋण प्रमाण वीडियो',bn:'ঋণ প্রমাণ ভিডিও',mr:'कर्ज पुरावा व्हिडिओ',te:'అప్పు రుజువు వీడియో',ta:'கடன் சான்று வீடியோ',gu:'ઉધાર પ્રૂફ વีडियो',ur:'قرض ثبوت ویڈیو',kn:'ಸಾಲ ಪುರಾವೆ ವೀಡಿಯೊ',or:'ଋଣ ପ୍ରମାଣ ଭିଡiO',ml:'വായ്പ തെളിവ് വീഡിയോ',pa:'ਕਰਜ਼ੇ ਦਾ ਸਬੂਤ ਵੀਡੀਓ',as:"ধাৰৰ প্ৰমাণ ভিডিঅ'",mai:'ऋण प्रमाण वीडियो',sat:'ᱮᱛᱚᱢ ᱥᱟᱠᱥᱤ',ks:'قرض ثبوت ویڈیو'},
+  };
+
+  // Translate helper — falls back to English
+  const tKey = (key, lang) => TR[key]?.[lang] ?? TR[key]?.en ?? key;
+
+  // Language selector component
+  function LangSelector() {
+    const { lang, setLang } = useLang();
+    return (
+      <select
+        value={lang}
+        onChange={e => setLang(e.target.value)}
+        style={{
+          background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.3)',
+          color: '#fff', borderRadius: 8, padding: '5px 10px', fontSize: 12.5,
+          cursor: 'pointer', outline: 'none', fontWeight: 600, maxWidth: 110,
+        }}
+      >
+        {Object.entries(LANGS).map(([code, name]) => (
+          <option key={code} value={code} style={{ background: '#1e293b', color: '#fff', fontWeight: 600 }}>
+            {name}
+          </option>
+        ))}
+      </select>
+    );
+  }
 
   // ── Global helpers ─────────────────────────────────────────────────────────
   const todayStr  = () => new Date().toISOString().split('T')[0];
@@ -276,10 +324,11 @@
   // ── Status badge ───────────────────────────────────────────────────────────
   function StatusBadge({ status, style: s }) {
     const { C } = useTheme();
+    const { t } = useLang();
     const cfg = {
-      open:     { bg: C.successLight, color: C.success, label: 'Open' },
-      closed:   { bg: C.errorLight,   color: C.error,   label: 'Closed' },
-      bad_debt: { bg: C.amberLight,   color: C.amber,   label: 'Bad Debt' },
+      open:     { bg: C.successLight, color: C.success, label: t('statusOpen') },
+      closed:   { bg: C.errorLight,   color: C.error,   label: t('statusClosed') },
+      bad_debt: { bg: C.amberLight,   color: C.amber,   label: t('statusBadDebt') },
     };
     const { bg, color, label } = cfg[status] || cfg.open;
     return (
@@ -483,6 +532,7 @@
 
   function Navbar({ title, onBack, onLogout }) {
     const { C, dark, toggle } = useTheme();
+    const { lang, t } = useLang();
     return (
       <div style={{
         background: C.navBg, color: '#fff', height: 56, padding: '0 20px',
@@ -500,6 +550,8 @@
           <span style={{ fontWeight: 800, fontSize: 16.5, letterSpacing: '-0.01em' }}>🏦 {title}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* 🌐 Language */}
+          <LangSelector />
           {/* 🌙 Dark / Light toggle */}
           <button
             onClick={toggle}
@@ -516,7 +568,7 @@
               background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)',
               color: '#fff', borderRadius: 7, padding: '6px 14px', cursor: 'pointer',
               fontSize: 13, fontWeight: 600,
-            }}>Logout</button>
+            }}>{t('logout')}</button>
           )}
         </div>
       </div>
@@ -624,6 +676,7 @@
 
   function LoginPage({ onLogin }) {
     const { C } = useTheme();
+    const { t } = useLang();
     const [form, setForm]       = useState({ username: '', password: '' });
     const [error, setError]     = useState('');
     const [loading, setLoading] = useState(false);
@@ -654,10 +707,10 @@
             <p style={{ color: C.faint, fontSize: 13.5, marginTop: 5 }}>Lending Management System</p>
           </div>
           <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <Input label="Username" required type="text" autoFocus value={form.username} onChange={set('username')} placeholder="Enter username" />
-            <Input label="Password" required type="password" value={form.password} onChange={set('password')} placeholder="Enter password" />
+            <Input label={t('username')} required type="text" autoFocus value={form.username} onChange={set('username')} placeholder="Enter username" />
+            <Input label={t('password')} required type="password" value={form.password} onChange={set('password')} placeholder="Enter password" />
             {error && <Alert type="error">{error}</Alert>}
-            <Btn type="submit" loading={loading} style={{ width: '100%', padding: '12px', marginTop: 6, fontSize: 15 }}>Sign In</Btn>
+            <Btn type="submit" loading={loading} style={{ width: '100%', padding: '12px', marginTop: 6, fontSize: 15 }}>{t('signIn')}</Btn>
           </form>
           <p style={{ textAlign: 'center', marginTop: 22, fontSize: 12, color: C.faint }}>🔒 Administrator access only</p>
         </div>
@@ -669,12 +722,13 @@
 
   function HomePage({ onNavigate, onLogout }) {
     const { C, dark, toggle } = useTheme();
+    const { t } = useLang();
     const dateStr = new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
     const cards = [
-      { key: 'add',       icon: '+',  iconColor: '#fff', bg: C.primary, title: 'Add New Case',          desc: 'Register a new lending record. Date & time are auto-filled.' },
-      { key: 'view',      icon: '📋', bg: C.cyan,        title: 'View All Cases',        desc: 'Browse, search and filter all records. Click any row for details or to close.' },
-      { key: 'existing',  icon: '📂', bg: C.green,       title: 'Add Existing Case',     desc: 'Digitise an old record. Enter the original loan date & time manually.' },
-      { key: 'dashboard', icon: '📊', bg: C.violet,      title: 'Dashboard & Analytics', desc: 'Charts, KPIs, trends, bad debts, top borrowers and full portfolio overview.' },
+      { key: 'add',       icon: '+',  iconColor: '#fff', bg: C.primary, title: t('addNewCase'),       desc: 'Register a new lending record. Date & time are auto-filled.' },
+      { key: 'view',      icon: '📋', bg: C.cyan,        title: t('viewAllCases'),    desc: 'Browse, search and filter all records. Click any row for details or to close.' },
+      { key: 'existing',  icon: '📂', bg: C.green,       title: t('addExistingCase'), desc: 'Digitise an old record. Enter the original loan date & time manually.' },
+      { key: 'dashboard', icon: '📊', bg: C.violet,      title: t('dashboard'),       desc: 'Charts, KPIs, trends, bad debts, top borrowers and full portfolio overview.' },
     ];
     return (
       <div style={{ minHeight: '100vh', background: C.bg, transition: 'background-color 0.3s' }}>
@@ -710,6 +764,7 @@
 
   function AddCasePage({ onBack, isExisting }) {
     const { C } = useTheme();
+    const { t } = useLang();
     const blank = () => ({
       name: '', father_name: '', address: '', mobile: '', items: '', weight: '', metal: 'Gold',
       money_lent: '', interest_rate: '',
@@ -759,19 +814,19 @@
 
               {/* ── Borrower Details ─────────────────────────────────────── */}
               <div>
-                <SectionTitle>Borrower Details</SectionTitle>
+                <SectionTitle>{t('borrowerDetails')}</SectionTitle>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   <div style={g2}>
-                    <Input label="Borrower Name" required value={form.name} onChange={set('name')} placeholder="Full name" autoFocus />
-                    <Input label="Father's Name" value={form.father_name} onChange={set('father_name')} placeholder="Father's full name" />
+                    <Input label={t('borrowerName')} required value={form.name} onChange={set('name')} placeholder="Full name" autoFocus />
+                    <Input label={t('fatherName')} value={form.father_name} onChange={set('father_name')} placeholder="Father's full name" />
                   </div>
                   <div style={g2}>
-                    <Input label="Mobile Number" type="tel" value={form.mobile} onChange={set('mobile')} placeholder="e.g. 9876543210" />
+                    <Input label={t('mobileNumber')} type="tel" value={form.mobile} onChange={set('mobile')} placeholder="e.g. 9876543210" />
                     <div />
                   </div>
-                  <Textarea label="Address" value={form.address} onChange={set('address')} rows={2} placeholder="Full address..." />
+                  <Textarea label={t('address')} value={form.address} onChange={set('address')} rows={2} placeholder="Full address..." />
                   <FileUpload
-                    label="Address Proof Image (Aadhaar / PAN / Passport)"
+                    label={`${t('addressProof')} (Aadhaar / PAN / Passport)`}
                     accept="image/*"
                     value={form.address_proof}
                     onChange={setF('address_proof')}
@@ -781,13 +836,13 @@
 
               {/* ── Pledged Item ─────────────────────────────────────────── */}
               <div>
-                <SectionTitle>Pledged Item</SectionTitle>
+                <SectionTitle>{t('pledgedItem')}</SectionTitle>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  <Input label="Item Description" value={form.items} onChange={set('items')} placeholder="e.g. Gold necklace, 2 bangles, silver anklets" />
+                  <Input label={t('items')} value={form.items} onChange={set('items')} placeholder="e.g. Gold necklace, 2 bangles, silver anklets" />
                   <div style={g3}>
-                    <Input label="Weight (grams)" type="number" step="0.01" min="0" value={form.weight} onChange={set('weight')} placeholder="e.g. 10.5" />
+                    <Input label={t('weight')} type="number" step="0.01" min="0" value={form.weight} onChange={set('weight')} placeholder="e.g. 10.5" />
                     <div style={{ gridColumn: 'span 2' }}>
-                      <Select label="Metal Type" value={form.metal} onChange={set('metal')}>
+                      <Select label={t('metalType')} value={form.metal} onChange={set('metal')}>
                         {METALS.map(m => <option key={m} value={m}>{m}</option>)}
                       </Select>
                     </div>
@@ -797,26 +852,21 @@
 
               {/* ── Loan Details ─────────────────────────────────────────── */}
               <div>
-                <SectionTitle>Loan Details</SectionTitle>
+                <SectionTitle>{t('loanDetails')}</SectionTitle>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   <div style={g2}>
-                    <Input label="Amount Lent (₹)" type="number" step="0.01" min="0" value={form.money_lent} onChange={set('money_lent')} placeholder="e.g. 50000" />
-                    <Input label="Interest Rate (% / month)" type="number" step="0.01" min="0" value={form.interest_rate} onChange={set('interest_rate')} placeholder="e.g. 2" />
+                    <Input label={t('amountLent')} type="number" step="0.01" min="0" value={form.money_lent} onChange={set('money_lent')} placeholder="e.g. 50000" />
+                    <Input label={t('interestRate')} type="number" step="0.01" min="0" value={form.interest_rate} onChange={set('interest_rate')} placeholder="e.g. 2" />
                   </div>
                   <div style={g2}>
                     <Input label={isExisting ? 'Original Loan Date' : 'Date'} type="date" value={form.loan_date} onChange={set('loan_date')} required={isExisting} />
                     <Input label={isExisting ? 'Original Loan Time' : 'Time'} type="time" value={form.loan_time} onChange={set('loan_time')} />
                   </div>
                   <div style={g2}>
-                    <Input
-                      label="Probable Close (Month & Year)"
-                      type="month"
-                      value={form.probable_close_date}
-                      onChange={set('probable_close_date')}
-                    />
+                    <Input label={t('probableClose')} type="month" value={form.probable_close_date} onChange={set('probable_close_date')} />
                     <div>
                       <Input
-                        label="Hard Deadline (Asset Confiscation Date)"
+                        label={t('hardDeadline')}
                         type="date"
                         value={form.hard_deadline}
                         onChange={set('hard_deadline')}
@@ -825,13 +875,13 @@
                       {hdPast && <div style={{ fontSize: 11, color: C.error, marginTop: 4 }}>⚠️ This date is already past!</div>}
                     </div>
                   </div>
-                  <Textarea label="Notes (optional)" value={form.notes} onChange={set('notes')} rows={3} placeholder="Any additional notes..." />
+                  <Textarea label={t('notes')} value={form.notes} onChange={set('notes')} rows={3} placeholder="Any additional notes..." />
                 </div>
               </div>
 
               {/* ── Lending Proof ─────────────────────────────────────────── */}
               <div>
-                <SectionTitle>Lending Proof Video</SectionTitle>
+                <SectionTitle>{t('lendingProofVid')}</SectionTitle>
                 <FileUpload
                   label="Upload video of borrower receiving the loan (optional)"
                   accept="video/*"
@@ -843,8 +893,8 @@
 
               {error && <Alert type="error">{error}</Alert>}
               <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', paddingTop: 4 }}>
-                <Btn type="button" variant="secondary" onClick={onBack}>Cancel</Btn>
-                <Btn type="submit" loading={loading}>💾 Save Case</Btn>
+                <Btn type="button" variant="secondary" onClick={onBack}>{t('cancel')}</Btn>
+                <Btn type="submit" loading={loading}>💾 {t('saveCase')}</Btn>
               </div>
             </form>
           </Card>
@@ -1512,6 +1562,16 @@
     const [auth, setAuth] = useState(null);
     const [page, setPage] = useState('home');
 
+    // Persist language in localStorage
+    const [lang, setLangState] = useState(() => {
+      try { return localStorage.getItem('loantrack-lang') || 'en'; } catch { return 'en'; }
+    });
+    const setLang = code => {
+      setLangState(code);
+      try { localStorage.setItem('loantrack-lang', code); } catch {}
+    };
+    const t = key => tKey(key, lang);
+
     // Persist theme in localStorage
     const [dark, setDark] = useState(() => {
       try { return localStorage.getItem('loantrack-theme') === 'dark'; } catch { return false; }
@@ -1555,6 +1615,7 @@
     );
 
     return (
+      <LangCtx.Provider value={{ lang, setLang, t }}>
       <ThemeCtx.Provider value={{ C, dark, toggle }}>
         {!auth && <LoginPage onLogin={() => setAuth(true)} />}
         {auth && page === 'home'      && <HomePage     onNavigate={setPage} onLogout={logout} />}
@@ -1563,6 +1624,7 @@
         {auth && page === 'view'      && <ViewCasesPage onBack={() => setPage('home')} />}
         {auth && page === 'dashboard' && <DashboardPage onBack={() => setPage('home')} />}
       </ThemeCtx.Provider>
+      </LangCtx.Provider>
     );
   }
 
