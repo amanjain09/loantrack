@@ -118,6 +118,8 @@
   </style>
 </head>
 <body>
+<!-- Google Translate widget lives outside React so React can't wipe it -->
+<div id="gt_widget" style="position:fixed;top:12px;right:220px;z-index:9999;"></div>
 <div id="root"></div>
 <script type="text/babel">
   const { useState, useEffect, useCallback, useRef, createContext, useContext } = React;
@@ -498,8 +500,6 @@
           <span style={{ fontWeight: 800, fontSize: 16.5, letterSpacing: '-0.01em' }}>🏦 {title}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {/* 🌐 Google Translate */}
-          <div id="gt_widget" />
           {/* 🌙 Dark / Light toggle */}
           <button
             onClick={toggle}
