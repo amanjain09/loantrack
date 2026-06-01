@@ -542,4 +542,6 @@ If you're a Claude session picking this up, here's what's important:
 
 | 2026-06 | profile-compact | Re-redesigned ProfilePanel as a Groww-style compact list. Slim header (40 px avatar + name + customer-id + close button), thin contact strip (phone + mini sub-chip), single-card body with hairline-divided list rows instead of separate cards, smaller icons (30 px), tighter typography (13.5 / 11.5 px), padding cut roughly in half across the board. Logout is now a ghost outline button instead of a full red bar. Panel width reduced from 460 → 380 px. |
 
-_Last updated: 2026-06-01 — commit `profile-compact`_
+| 2026-06 | perf-pass-1 | Big perf cleanup. (a) Switched React + ReactDOM CDN from the development bundles to the production minified bundles (\~150 KB → \~45 KB combined). (b) Deleted the dead i18n payload — the 109-key × 16-language TR translation map, the LANGS table, the tKey helper, the WHITE_ARROW data-URL, and the LangSelector body — replacing them with a 40-key English-only TR dict + a one-liner useLang stub. File size dropped from \~290 KB → \~215 KB (\~26 % smaller, much less to compile through Babel-standalone). (c) Added `html, body { overflow-x: hidden; max-width: 100vw }` so any child element that overflows no longer triggers a horizontal scrollbar. (d) Added a CSS-only initial loader (logo + animated shimmer pulse) inside `#root` that is wiped the moment React mounts — eliminates the white-flash + wrong-layout flash users were seeing while Babel-standalone was busy compiling the JSX. |
+
+_Last updated: 2026-06-01 — commit `perf-pass-1`_
