@@ -1711,7 +1711,7 @@ def serve(path):
 
 if __name__ == "__main__":
     print("\n" + "=" * 60)
-    print("  🏦  LoanTrack — Prabhu Ventures SaaS")
+    print("  ◆  Prabhu Ventures — LoanTrack SaaS")
     print("  👉  http://localhost:8080")
     print(f"  🔑  Admin: {ADMIN_USERNAME} / {ADMIN_PASSWORD}")
     print(f"  📱  Founder phone: {FOUNDER_PHONE}  (use OTP login)")

@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LoanTrack — Lending Management</title>
+  <title>Prabhu Ventures — LoanTrack</title>
+  <link rel="icon" type="image/png" href="/static/logo.png" />
+  <link rel="apple-touch-icon" href="/static/logo.png" />
   <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -198,6 +200,30 @@
     '#818CF8','#38BDF8','#4ADE80','#FBBF24','#F87171',
     '#A78BFA','#F472B6','#34D399','#60A5FA','#FACC15',
   ];
+
+  // ── Brand logo ────────────────────────────────────────────────────────────
+  // Renders /static/logo.png with:
+  //  • background-size + position shifts to centre the PV monogram
+  //    (source PNG has more whitespace on the right)
+  //  • radial mask that fades the corners into whatever's behind it
+  //  • optional glow for hero placements
+  function Logo({ size = 40, glow = false, style: s = {} }) {
+    return (
+      <div style={{
+        width: size, height: size, flexShrink: 0,
+        backgroundImage: 'url(/static/logo.png)',
+        backgroundRepeat: 'no-repeat',
+        backgroundSize:    '128% auto',     // zoom slightly to crop excess right whitespace
+        backgroundPosition:'32% center',    // shift focus left so PV sits centred
+        WebkitMaskImage: 'radial-gradient(circle at 50% 50%, #000 52%, transparent 88%)',
+        maskImage:       'radial-gradient(circle at 50% 50%, #000 52%, transparent 88%)',
+        WebkitMaskRepeat:'no-repeat', maskRepeat:'no-repeat',
+        WebkitMaskSize:  '100% 100%',       maskSize:  '100% 100%',
+        filter: glow ? 'drop-shadow(0 6px 22px rgba(56,189,248,0.45))' : 'none',
+        ...s,
+      }} />
+    );
+  }
 
   // ── Language system ────────────────────────────────────────────────────────
   const LangCtx = createContext(null);
@@ -611,7 +637,8 @@
               borderRadius: 7, padding: '5px 11px', cursor: 'pointer', fontSize: 17, lineHeight: 1,
             }}>←</button>
           )}
-          <span style={{ fontWeight: 800, fontSize: 16.5, letterSpacing: '-0.01em' }}>🏦 {title}</span>
+          <Logo size={32} />
+          <span style={{ fontWeight: 800, fontSize: 16.5, letterSpacing: '-0.01em' }}>{title}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {/* 🌐 Language */}
@@ -887,7 +914,7 @@
               background: C.bg, border: `1px solid ${C.border}`, cursor: 'pointer', color: C.muted, fontSize: 15,
             }}>✕</button>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
-              <div style={{ width: 38, height: 38, borderRadius: 11, background: ACC_GRAD, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 19 }}>🏦</div>
+              <Logo size={42} />
               <div>
                 <div style={{ fontWeight: 800, fontSize: 16, color: C.text, lineHeight: 1.1 }}>Prabhu Ventures</div>
                 <div style={{ fontSize: 11.5, color: C.faint }}>LoanTrack Platform</div>
@@ -1660,7 +1687,7 @@
         transition: 'background 0.3s, border-color 0.3s, backdrop-filter 0.3s',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 34, height: 34, borderRadius: 10, background: ACC_GRAD, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>🏦</div>
+          <Logo size={38} glow />
           <span style={{ fontWeight: 800, fontSize: 17, color: '#fff', letterSpacing: '-0.02em' }}>Prabhu Ventures</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1948,7 +1975,7 @@
         <footer style={{ background: dark ? '#080B18' : '#0B1020', padding: '44px clamp(20px,6vw,80px) 36px' }}>
           <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', flexWrap: 'wrap', gap: 24, justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: ACC_GRAD, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>🏦</div>
+              <Logo size={40} />
               <div>
                 <div style={{ fontWeight: 800, fontSize: 16, color: '#fff' }}>Prabhu Ventures</div>
                 <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>Lending, done right.</div>
