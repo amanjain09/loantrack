@@ -202,14 +202,16 @@
   ];
 
   // ── Brand logo ────────────────────────────────────────────────────────────
-  // Renders /static/logo.png as-is. Flat, no mask, no fade.
-  function Logo({ size = 40, glow = false, style: s = {} }) {
+  // Renders /static/logo.png with rounded corners (default radius scales
+  // with size so it stays proportional at 36px nav and 64px hero alike).
+  function Logo({ size = 40, glow = false, radius, style: s = {} }) {
     return (
       <img
         src="/static/logo.png" alt="Prabhu Ventures"
         style={{
           width: size, height: size, flexShrink: 0, display: 'block',
-          objectFit: 'contain', objectPosition: 'center',
+          objectFit: 'cover', objectPosition: 'center',
+          borderRadius: radius != null ? radius : Math.round(size * 0.22),
           filter: glow ? 'drop-shadow(0 6px 22px rgba(56,189,248,0.45))' : 'none',
           ...s,
         }}
