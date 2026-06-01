@@ -102,6 +102,8 @@ implementations ready for Razorpay, Stripe, and PayU.
 |---|---|---|
 | Backend | Python 3.14 + Flask 3 + Gunicorn | Lightweight, well-known |
 | DB driver | `psycopg[binary]==3.3.4` (psycopg3) | Required for Python 3.14 |
+| PDF | `reportlab==4.2.5` | Receipt generation |
+| 2FA  | `pyotp==2.9.0` | TOTP for admin login |
 | Database (prod) | PostgreSQL on Render free tier | Persistent, managed |
 | Database (dev) | SQLite (`lending.db`, auto-created) | Zero setup |
 | Auth | Flask sessions + `werkzeug.security` (pbkdf2:sha256) | Simple, secure |
@@ -211,7 +213,9 @@ The platform has **two roles**:
 | `otp_codes` | Issued OTPs (signup / login) | `phone, code, purpose, expires_at, used` |
 | `leads` | Landing-page "request access" submissions | `name, email, phone, company, message, created_at` |
 | `audit_log` | Append-only event log | `actor_id, action, target_type, target_id, meta (JSON), created_at` |
-| `case_history` | Per-case change log (created / updated / closed / marked_bad_debt) | `case_id, actor_id, action, changes (JSON diff), created_at` |
+| `case_history` | Per-case change log (created / updated / closed / marked_bad_debt / renewed / partial_payment / reminder_sent) | `case_id, actor_id, action, changes (JSON diff), created_at` |
+| `partial_payments` | Partial repayments against open cases | `case_id, amount, paid_at, method, note, actor_id` |
+| `branches` | Per-tenant branches / locations | `user_id, name, address, phone, is_default` |
 
 Existing legacy cases (from before multi-tenancy) are auto-migrated to a
 **founding lender** account on `init_db()` so the live ledger is never
@@ -239,15 +243,24 @@ lost.
 - `GET /api/dashboard`
 - `GET /api/users/me/profile` — own profile + subscription + payments
 - `PATCH /api/users/me` — edit own profile / KYC (name, email, address, business_name, aadhaar, pan, dob)
+- `GET /api/borrowers` · `GET /api/borrowers/<phone>/cases` — borrower-grouped views
+- `POST /api/cases/<id>/renew` — extend deadline, optionally capitalise interest
+- `POST /api/cases/<id>/partial-payment` · `GET /api/cases/<id>/partial-payments`
+- `GET /api/cases/<id>/receipt?type=lending|closure` — PDF download
+- `GET/POST /api/branches` · `DELETE /api/branches/<id>` — branch CRUD
+- `POST /api/auth/2fa/setup` · `/verify` · `/disable` — TOTP for admins
+- `POST /api/auth/login-totp` — second step of 2FA login
 - `GET /api/billing/me` · `POST /api/billing/create-order` · `POST /api/billing/verify`
 
 ### Admin
 - `GET /api/admin/stats`, `/charts`, `/users`, `/admins`, `/plans`, `/payments`, `/audit`, `/leads`
 - `PUT /api/admin/users/<id>`
 - `POST /api/admin/users/<id>/suspend|activate`
+- `POST /api/admin/users/<id>/kyc` — `{ status: verified|pending|rejected }`
 - `POST /api/admin/subscription/<user_id>/extend` — `{ days }`
 - `POST /api/admin/create-admin`
 - `POST /api/admin/plans` — upsert plan
+- `POST /api/admin/send-reminders` — sweep open cases & send SMS (cron-friendly)
 - `POST /api/billing/manual-payment` — record offline payment
 
 All authenticated endpoints are gated by `@require_auth(roles=[...])`.
@@ -432,6 +445,7 @@ commit going forward will append a row here.
 | 2026-06 | profile-menu | Replaced Logout button with avatar/profile menu. Tenants get a full slide-out ProfilePanel (profile + KYC + billing + payment history + preferences + logout). Admins get a clean dropdown (preferences + logout). Landing page settings dropdown for lang + theme. Date strip + Billing card removed from HomePage. New KYC columns on users, `GET /api/users/me/profile`, `PATCH /api/users/me`, Customer ID format `PV-NNNNNN`. |
 | 2026-06 | scaling-doc | Added `docs/SCALING.md` — full architecture + cost model for scaling to 1 crore (10 M) tenants. Phased migration plan, target architecture, per-component deep dives, capacity model, ~$220 – 380 K/mo cost ballpark. Pure docs, no code changes. |
 | 2026-06 | gold-rate | Live gold-rate widget. New `GET /api/gold-rate` endpoint pulls 24k/22k/18k INR/g from a free public spot-price API (USD/oz × USD-INR ÷ 31.1035), 1-hour server cache, hard fallback on API failure. New `<GoldRateBar>` shown on Add New Case + Dashboard. Add-case shows a "Suggested loan @ 75% LTV" hint with one-click apply when metal=Gold and weight is filled. |
+| 2026-06 | phase3-bundle | **8 Phase-3 features shipped together (#5b–#5i)**: borrower profile (`GET /api/borrowers`, `/api/borrowers/<phone>/cases`, history hint on Add Case form); loan renewal (`POST /api/cases/<id>/renew` with deadline push + optional interest capitalisation); partial payments (new `partial_payments` table, `POST/GET /api/cases/<id>/partial-payment[s]`, ledger inside case modal); PDF receipts via reportlab (`GET /api/cases/<id>/receipt?type=lending\|closure`); 2FA for admins via pyotp (`POST /api/auth/2fa/{setup,verify,disable}`, two-step login at `/api/auth/login-totp`); KYC admin verify/reject (`POST /api/admin/users/<id>/kyc`, dropdown action on Lenders tab); multi-branch (`branches` table, `GET/POST /api/branches`, `DELETE /api/branches/<id>`, manage inside ProfilePanel); SMS reminders (`POST /api/admin/send-reminders` — finds open cases with deadline ≤7d or overdue, sends via configured SMS provider). |
 
 ---
 
@@ -458,6 +472,14 @@ Tracked as separate user requests; expected to span several sessions.
 - [x] Language + theme moved into profile / settings menus
 - [x] 1 Cr scaling architecture doc — see [docs/SCALING.md](docs/SCALING.md)
 - [x] Live gold rate widget (Add Case + Dashboard) with 75% LTV suggestion
+- [x] Borrower profile (linked cases by phone, history hint on Add Case)
+- [x] Loan renewal / extension (deadline + optional interest capitalisation)
+- [x] Partial payments (record + ledger in case modal)
+- [x] PDF receipts (lending + closure, signed-style A4 layout)
+- [x] 2FA for admins (TOTP via authenticator app)
+- [x] Formal KYC capture + admin verify/reject/pending workflow
+- [x] Multi-branch support (manage branches inside profile panel)
+- [x] SMS reminders (admin-triggered sweep for 7-day deadlines + overdue)
 - [ ] Full i18n coverage (every visible string × 16 languages)
 - [ ] Move language + theme controls into the profile menu
 - [ ] 1 Cr scaling architecture doc
@@ -512,4 +534,4 @@ If you're a Claude session picking this up, here's what's important:
 
 ---
 
-_Last updated: 2026-06-01 — commit `gold-rate`_
+_Last updated: 2026-06-01 — commit `phase3-bundle`_

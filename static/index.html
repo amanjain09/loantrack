@@ -1046,11 +1046,23 @@
     };
 
     // ─── Admin / Super-admin login ───
+    const [needsTotp, setNeedsTotp] = useState(false);
+    const [totpCode, setTotpCode]   = useState('');
     const doAdminLogin = async e => {
       e.preventDefault(); setError(''); setLoading(true);
       try {
         const r = await api.post('/api/auth/login', adminForm);
-        if (r.success) onLogin(); else setError(r.message || 'Invalid credentials');
+        if (r.success) onLogin();
+        else if (r.needs_totp) { setNeedsTotp(true); setError(''); }
+        else setError(r.message || 'Invalid credentials');
+      } catch (err) { setError(err.message || 'Server error'); }
+      finally { setLoading(false); }
+    };
+    const doAdminTotp = async e => {
+      e.preventDefault(); setError(''); setLoading(true);
+      try {
+        const r = await api.post('/api/auth/login-totp', { code: totpCode });
+        if (r.success) onLogin(); else setError(r.message || 'Invalid code');
       } catch (err) { setError(err.message || 'Server error'); }
       finally { setLoading(false); }
     };
@@ -1143,7 +1155,7 @@
             )}
 
             {/* ADMIN — username + password */}
-            {mode === 'admin' && (
+            {mode === 'admin' && !needsTotp && (
               <form onSubmit={doAdminLogin} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <h3 style={{ fontSize: 17, fontWeight: 800, color: C.text }}>Staff sign-in</h3>
                 <p style={{ fontSize: 13, color: C.muted, marginTop: -6 }}>For Prabhu Ventures admins & super-admins.</p>
@@ -1152,6 +1164,16 @@
                 {error && <Alert type="error">{error}</Alert>}
                 <Btn type="submit" loading={loading} style={{ width: '100%', padding: 12, fontSize: 15, marginTop: 4 }}>{t('signIn')} →</Btn>
                 <p style={{ textAlign: 'center', fontSize: 11.5, color: C.faint }}>🔒 Authorised staff only</p>
+              </form>
+            )}
+            {mode === 'admin' && needsTotp && (
+              <form onSubmit={doAdminTotp} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <h3 style={{ fontSize: 17, fontWeight: 800, color: C.text }}>🔐 Two-Factor Authentication</h3>
+                <p style={{ fontSize: 13, color: C.muted, marginTop: -6 }}>Open your authenticator app and enter the 6-digit code.</p>
+                <Input label="Code" required autoFocus value={totpCode} onChange={e => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="123456" />
+                {error && <Alert type="error">{error}</Alert>}
+                <Btn type="submit" loading={loading} style={{ width: '100%', padding: 12, fontSize: 15 }}>Verify →</Btn>
+                <button type="button" onClick={() => { setNeedsTotp(false); setTotpCode(''); setError(''); }} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', fontSize: 12 }}>← back</button>
               </form>
             )}
           </div>
@@ -1334,15 +1356,54 @@
     const [billErr, setBillErr] = useState('');
     const [billOK, setBillOK]   = useState('');
 
+    // 5h Branches state
+    const [branches, setBranches]       = useState([]);
+    const [newBranch, setNewBranch]     = useState({ name: '', address: '' });
+    const [addingBranch, setAddingBranch] = useState(false);
+
+    // 5f 2FA state
+    const [twofa, setTwofa]     = useState(null);   // { secret, uri } during setup
+    const [totp, setTotp]       = useState('');
+    const [twofaErr, setTwofaErr] = useState('');
+
     const load = useCallback(async () => {
       try {
-        const [d, p] = await Promise.all([
+        const [d, p, br] = await Promise.all([
           api.get('/api/users/me/profile'),
           api.get('/api/billing/plans'),
+          api.get('/api/branches').catch(() => []),
         ]);
-        setData(d); setPlans(p.filter(x => !x.is_trial));
+        setData(d); setPlans(p.filter(x => !x.is_trial)); setBranches(br);
       } catch (e) { /* swallow */ }
     }, []);
+
+    const addBranch = async () => {
+      if (!newBranch.name.trim()) return;
+      try {
+        await api.post('/api/branches', { ...newBranch, is_default: branches.length === 0 });
+        setNewBranch({ name: '', address: '' }); setAddingBranch(false);
+        load();
+      } catch (e) { /* swallow */ }
+    };
+    const deleteBranch = async (id) => {
+      if (!confirm('Delete this branch? Cases assigned to it will become unassigned.')) return;
+      try { await api.req(`/api/branches/${id}`, { method: 'DELETE' }); load(); } catch {}
+    };
+
+    const start2FA = async () => {
+      setTwofaErr('');
+      try { setTwofa(await api.post('/api/auth/2fa/setup', {})); }
+      catch (e) { setTwofaErr(e.message); }
+    };
+    const confirm2FA = async () => {
+      setTwofaErr('');
+      try { await api.post('/api/auth/2fa/verify', { code: totp }); setTwofa(null); setTotp(''); load(); refreshMe?.(); }
+      catch (e) { setTwofaErr(e.message); }
+    };
+    const disable2FA = async () => {
+      if (!confirm('Disable 2FA on your account?')) return;
+      try { await api.post('/api/auth/2fa/disable', {}); load(); refreshMe?.(); } catch {}
+    };
     useEffect(() => { load(); }, [load]);
 
     useEffect(() => {
@@ -1576,6 +1637,33 @@
                     </div>
                   </>
                 )}
+
+                {/* Branches */}
+                <SecHead action={!addingBranch && <Btn variant="secondary" onClick={() => setAddingBranch(true)} style={{ padding: '5px 12px', fontSize: 12 }}>+ Add</Btn>}>Branches</SecHead>
+                <div style={{ background: C.card, borderRadius: 12, border: `1px solid ${C.border}`, padding: '6px 14px', marginBottom: 18 }}>
+                  {branches.length === 0 && !addingBranch && <div style={{ fontSize: 12.5, color: C.faint, padding: '6px 0' }}>No branches yet — add your first to start scoping cases by location.</div>}
+                  {branches.map(b => (
+                    <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: `1px solid ${C.border}` }}>
+                      <div>
+                        <div style={{ fontSize: 13.5, fontWeight: 700, color: C.text }}>
+                          {b.name} {b.is_default ? <span style={{ fontSize: 10, color: C.success, marginLeft: 6 }}>DEFAULT</span> : null}
+                        </div>
+                        {b.address && <div style={{ fontSize: 12, color: C.muted }}>{b.address}</div>}
+                      </div>
+                      <button onClick={() => deleteBranch(b.id)} style={{ background: 'none', border: 'none', color: C.error, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>Remove</button>
+                    </div>
+                  ))}
+                  {addingBranch && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '8px 0' }}>
+                      <Input label="Branch Name" value={newBranch.name} onChange={e => setNewBranch(b => ({ ...b, name: e.target.value }))} />
+                      <Input label="Address (optional)" value={newBranch.address} onChange={e => setNewBranch(b => ({ ...b, address: e.target.value }))} />
+                      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                        <Btn variant="ghost" onClick={() => setAddingBranch(false)}>Cancel</Btn>
+                        <Btn onClick={addBranch}>Save</Btn>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 {/* Preferences */}
                 <SecHead>Preferences</SecHead>
@@ -1870,6 +1958,17 @@
             {tabBtn('leads',    '📩 Signup Requests')}
             {tabBtn('payments', '💳 Payments')}
             {tabBtn('audit',    '📜 Audit Log')}
+            <button onClick={async () => {
+              if (!confirm('Send SMS reminders to all borrowers with deadlines within 7 days or already overdue?')) return;
+              try {
+                const r = await api.post('/api/admin/send-reminders', {});
+                alert(`Sent ${r.sent} reminders (${r.skipped} skipped, ${r.scanned} scanned).`);
+                load();
+              } catch (e) { alert('Failed: ' + e.message); }
+            }} style={{
+              background: C.amber, color: '#fff', border: 'none', borderRadius: 9,
+              padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            }}>📣 Send Reminders</button>
           </div>
 
           {error && <Alert type="error">{error}</Alert>}
@@ -1967,8 +2066,21 @@
                             </div>
                           </td>
                           <td>
-                            <div style={{ display: 'flex', gap: 6 }}>
+                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                               <Btn variant="secondary" onClick={() => setEL(u)} style={{ padding: '6px 10px', fontSize: 12 }}>Edit</Btn>
+                              <select onChange={async e => {
+                                const s = e.target.value; if (!s) return;
+                                try { await api.post(`/api/admin/users/${u.id}/kyc`, { status: s }); load(); }
+                                catch (err) { alert(err.message); }
+                                e.target.value = '';
+                              }} style={{
+                                background: C.inputBg, color: C.text, border: `1px solid ${C.border}`, borderRadius: 7, padding: '4px 8px', fontSize: 12,
+                              }}>
+                                <option value="">KYC…</option>
+                                <option value="verified">Mark Verified</option>
+                                <option value="pending">Mark Pending</option>
+                                <option value="rejected">Mark Rejected</option>
+                              </select>
                               <Btn variant={u.status === 'active' ? 'danger' : 'primary'} loading={busy === 'u' + u.id} onClick={() => toggleUser(u)} style={{ padding: '6px 10px', fontSize: 12 }}>
                                 {u.status === 'active' ? 'Suspend' : 'Activate'}
                               </Btn>
@@ -2551,6 +2663,7 @@
     const { C } = useTheme();
     const { t } = useLang();
     const { rate: goldRate } = useGoldRate();
+    const [borrowerCases, setBorrowerCases] = useState([]);
     const blank = () => ({
       name: '', father_name: '', address: '', mobile: '', items: '', weight: '', metal: 'Gold',
       money_lent: '', interest_rate: '',
@@ -2611,7 +2724,15 @@
                     <Input label={t('fatherName')} value={form.father_name} onChange={set('father_name')} placeholder="Father's full name" />
                   </div>
                   <div style={g2}>
-                    <Input label={t('mobileNumber')} type="tel" value={form.mobile} onChange={set('mobile')} placeholder="e.g. 9876543210" />
+                    <Input label={t('mobileNumber')} type="tel" value={form.mobile}
+                      onChange={e => {
+                        const v = e.target.value;
+                        setForm(f => ({ ...f, mobile: v })); setError('');
+                        if (v && v.length >= 10) {
+                          api.get(`/api/borrowers/${encodeURIComponent(v)}/cases`).then(setBorrowerCases).catch(() => setBorrowerCases([]));
+                        } else { setBorrowerCases([]); }
+                      }}
+                      placeholder="e.g. 9876543210" />
                     <div />
                   </div>
                   <Textarea label={t('address')} value={form.address} onChange={set('address')} rows={2} placeholder="Full address..." />
@@ -2639,6 +2760,18 @@
                   </div>
                 </div>
               </div>
+
+              {/* Existing-borrower hint */}
+              {borrowerCases.length > 0 && (
+                <div style={{
+                  background: C.infoBg, border: `1px solid ${C.infoBorder}`, color: C.infoColor,
+                  borderRadius: 10, padding: '10px 14px', fontSize: 13,
+                }}>
+                  ℹ️ <strong>{borrowerCases[0].name}</strong> has borrowed <strong>{borrowerCases.length}</strong> time{borrowerCases.length === 1 ? '' : 's'} before.
+                  Total lent: ₹{borrowerCases.reduce((s, c) => s + (c.money_lent || 0), 0).toLocaleString('en-IN')}.
+                  ({borrowerCases.filter(c => c.status === 'open').length} open · {borrowerCases.filter(c => c.status === 'closed').length} closed · {borrowerCases.filter(c => c.status === 'bad_debt').length} bad debt)
+                </div>
+              )}
 
               {/* ── Loan Details ─────────────────────────────────────────── */}
               <div>
@@ -2751,11 +2884,57 @@
     const [deleting,       setDeleting]       = useState(false);
     const [delErr,         setDelErr]         = useState('');
 
+    // 5d Renew / 5e Partial payments
+    const [renewOpen, setRenewOpen]   = useState(false);
+    const [renewForm, setRenewForm]   = useState({ extend_months: 3, capitalise_interest: false });
+    const [renewBusy, setRenewBusy]   = useState(false);
+    const [renewErr,  setRenewErr]    = useState('');
+    const [partials,  setPartials]    = useState([]);
+    const [partialOpen, setPartialOpen] = useState(false);
+    const [partialForm, setPartialForm] = useState({ amount: '', method: 'UPI', note: '' });
+    const [partialBusy, setPartialBusy] = useState(false);
+    const [partialErr,  setPartialErr]  = useState('');
+
     useEffect(() => {
       api.get(`/api/cases/${caseId}`)
         .then(full => { setC(full); setLF(false); })
         .catch(() => setLF(false));
+      api.get(`/api/cases/${caseId}/partial-payments`)
+        .then(setPartials).catch(() => {});
     }, [caseId]);
+
+    const doRenew = async () => {
+      setRenewBusy(true); setRenewErr('');
+      try {
+        await api.post(`/api/cases/${c.id}/renew`, {
+          extend_months: parseInt(renewForm.extend_months) || 0,
+          capitalise_interest: !!renewForm.capitalise_interest,
+        });
+        const full = await api.get(`/api/cases/${c.id}`);
+        setC(full); setRenewOpen(false); onClosed?.();
+      } catch (e) { setRenewErr(e.message || 'Could not renew'); }
+      finally { setRenewBusy(false); }
+    };
+
+    const doPartial = async () => {
+      setPartialBusy(true); setPartialErr('');
+      try {
+        await api.post(`/api/cases/${c.id}/partial-payment`, {
+          amount: parseFloat(partialForm.amount), method: partialForm.method, note: partialForm.note,
+        });
+        const list = await api.get(`/api/cases/${c.id}/partial-payments`);
+        setPartials(list);
+        setPartialForm({ amount: '', method: 'UPI', note: '' });
+        setPartialOpen(false);
+        onClosed?.();
+      } catch (e) { setPartialErr(e.message || 'Could not record payment'); }
+      finally { setPartialBusy(false); }
+    };
+
+    const downloadReceipt = (kind) => {
+      const url = `/api/cases/${c.id}/receipt?type=${kind}`;
+      window.open(url, '_blank');
+    };
 
     const startEdit = () => {
       setEditForm({
@@ -3115,10 +3294,72 @@
               </div>
             )}
 
+            {/* ─── Partial payments list ─── */}
+            {partials.length > 0 && (
+              <div>
+                <SecHd>Partial Payments</SecHd>
+                <div style={{ background: C.successLight, border: `1px solid ${C.successBorder}`, borderRadius: 10, padding: '10px 14px' }}>
+                  {partials.map(p => (
+                    <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', color: C.text }}>
+                      <span>{(p.paid_at || p.created_at || '').slice(0, 16).replace('T',' ')} · {p.method || 'cash'}</span>
+                      <strong style={{ color: C.success }}>₹{Number(p.amount).toLocaleString('en-IN')}</strong>
+                    </div>
+                  ))}
+                  <div style={{ borderTop: `1px dashed ${C.successBorder}`, marginTop: 6, paddingTop: 6, display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 700, color: C.success }}>
+                    <span>Total paid so far</span>
+                    <span>₹{partials.reduce((s, p) => s + Number(p.amount || 0), 0).toLocaleString('en-IN')}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* ─── Top-level action row ─── */}
             {!editing && !done && !bdDone && (
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 4, borderTop: `1px solid ${C.border}`, marginTop: 4 }}>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 4, borderTop: `1px solid ${C.border}`, marginTop: 4, flexWrap: 'wrap' }}>
+                <Btn variant="ghost" onClick={() => downloadReceipt('lending')} style={{ padding: '8px 14px', fontSize: 12 }}>📄 Lending Receipt</Btn>
+                {isClosed && <Btn variant="ghost" onClick={() => downloadReceipt('closure')} style={{ padding: '8px 14px', fontSize: 12 }}>📄 Closure Receipt</Btn>}
+                {isOpen && <Btn variant="ghost" onClick={() => setPartialOpen(o => !o)} style={{ padding: '8px 14px', fontSize: 12 }}>💰 Partial Payment</Btn>}
+                {isOpen && <Btn variant="ghost" onClick={() => setRenewOpen(o => !o)} style={{ padding: '8px 14px', fontSize: 12 }}>🔄 Renew</Btn>}
                 <Btn variant="secondary" onClick={startEdit} style={{ padding: '8px 16px' }}>✏️ Edit</Btn>
+              </div>
+            )}
+
+            {/* Partial payment form */}
+            {partialOpen && isOpen && (
+              <div style={{ background: C.successLight, borderRadius: 12, padding: 16, border: `1px solid ${C.successBorder}`, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ fontWeight: 700, color: C.success }}>Record Partial Payment</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <Input label="Amount (₹)" type="number" step="0.01" value={partialForm.amount} onChange={e => setPartialForm(f => ({ ...f, amount: e.target.value }))} />
+                  <Select label="Method" value={partialForm.method} onChange={e => setPartialForm(f => ({ ...f, method: e.target.value }))}>
+                    <option value="UPI">UPI</option>
+                    <option value="Cash">Cash</option>
+                    <option value="Bank Transfer">Bank Transfer</option>
+                    <option value="Cheque">Cheque</option>
+                  </Select>
+                </div>
+                <Input label="Note (optional)" value={partialForm.note} onChange={e => setPartialForm(f => ({ ...f, note: e.target.value }))} />
+                {partialErr && <Alert type="error">{partialErr}</Alert>}
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                  <Btn variant="ghost" onClick={() => setPartialOpen(false)}>Cancel</Btn>
+                  <Btn onClick={doPartial} loading={partialBusy}>Record Payment</Btn>
+                </div>
+              </div>
+            )}
+
+            {/* Renew loan form */}
+            {renewOpen && isOpen && (
+              <div style={{ background: C.amberLight, borderRadius: 12, padding: 16, border: `1px solid ${C.amberBorder}`, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ fontWeight: 700, color: C.amber }}>Renew / Extend Loan</div>
+                <Input label="Extend by (months)" type="number" min="1" value={renewForm.extend_months} onChange={e => setRenewForm(f => ({ ...f, extend_months: e.target.value }))} />
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: C.text }}>
+                  <input type="checkbox" checked={renewForm.capitalise_interest} onChange={e => setRenewForm(f => ({ ...f, capitalise_interest: e.target.checked }))} />
+                  Capitalise accrued interest into principal (resets loan date to today)
+                </label>
+                {renewErr && <Alert type="error">{renewErr}</Alert>}
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                  <Btn variant="ghost" onClick={() => setRenewOpen(false)}>Cancel</Btn>
+                  <Btn variant="warning" onClick={doRenew} loading={renewBusy}>Confirm Renewal</Btn>
+                </div>
               </div>
             )}
 

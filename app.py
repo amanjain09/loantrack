@@ -484,6 +484,54 @@ CREATE TABLE IF NOT EXISTS case_history (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )
 """
+
+PARTIAL_PAYMENTS_DDL_PG = """
+CREATE TABLE IF NOT EXISTS partial_payments (
+    id         SERIAL PRIMARY KEY,
+    case_id    INTEGER NOT NULL,
+    amount     REAL NOT NULL,
+    paid_at    TEXT,
+    method     TEXT,
+    note       TEXT,
+    actor_id   INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+"""
+PARTIAL_PAYMENTS_DDL_SQ = """
+CREATE TABLE IF NOT EXISTS partial_payments (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    case_id    INTEGER NOT NULL,
+    amount     REAL NOT NULL,
+    paid_at    TEXT,
+    method     TEXT,
+    note       TEXT,
+    actor_id   INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+"""
+
+BRANCHES_DDL_PG = """
+CREATE TABLE IF NOT EXISTS branches (
+    id         SERIAL PRIMARY KEY,
+    user_id    INTEGER NOT NULL,
+    name       TEXT NOT NULL,
+    address    TEXT,
+    phone      TEXT,
+    is_default BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+"""
+BRANCHES_DDL_SQ = """
+CREATE TABLE IF NOT EXISTS branches (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL,
+    name       TEXT NOT NULL,
+    address    TEXT,
+    phone      TEXT,
+    is_default INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+"""
 AUDIT_DDL_SQ = """
 CREATE TABLE IF NOT EXISTS audit_log (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -568,6 +616,18 @@ def init_db():
         cur.execute(OTP_DDL_PG)
         cur.execute(AUDIT_DDL_PG)
         cur.execute(CASE_HISTORY_DDL_PG)
+        cur.execute(PARTIAL_PAYMENTS_DDL_PG)
+        cur.execute(BRANCHES_DDL_PG)
+        # branch_id + 2FA columns
+        for col_def in [
+            "ADD COLUMN IF NOT EXISTS branch_id INTEGER",
+        ]:
+            cur.execute(f"ALTER TABLE cases {col_def}")
+        for col_def in [
+            "ADD COLUMN IF NOT EXISTS totp_secret TEXT",
+            "ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN DEFAULT FALSE",
+        ]:
+            cur.execute(f"ALTER TABLE users {col_def}")
         # KYC + profile columns on users (idempotent migration)
         for col_def in [
             "ADD COLUMN IF NOT EXISTS aadhaar TEXT",
@@ -637,6 +697,14 @@ def init_db():
         conn.execute(OTP_DDL_SQ)
         conn.execute(AUDIT_DDL_SQ)
         conn.execute(CASE_HISTORY_DDL_SQ)
+        conn.execute(PARTIAL_PAYMENTS_DDL_SQ)
+        conn.execute(BRANCHES_DDL_SQ)
+        for col_def in ["branch_id INTEGER"]:
+            try: conn.execute(f"ALTER TABLE cases ADD COLUMN {col_def}")
+            except: pass
+        for col_def in ["totp_secret TEXT", "totp_enabled INTEGER DEFAULT 0"]:
+            try: conn.execute(f"ALTER TABLE users ADD COLUMN {col_def}")
+            except: pass
         # KYC + profile columns on users (idempotent — SQLite has no IF NOT EXISTS for ALTER)
         for col_def in [
             "aadhaar TEXT", "pan TEXT", "dob TEXT", "address TEXT",
@@ -846,7 +914,8 @@ def edit_my_profile(_user):
 
 @app.route("/api/auth/login", methods=["POST"])
 def login():
-    """Username + password login (for admins & super-admins, and legacy lenders)."""
+    """Username + password login. If the admin has 2FA enabled, returns
+    {needs_totp:true} and expects a follow-up POST to /api/auth/login-totp."""
     data = request.get_json() or {}
     uname = (data.get("username") or "").strip()
     pwd   = data.get("password") or ""
@@ -860,17 +929,104 @@ def login():
     conn.close()
     if not row:
         return jsonify({"success": False, "message": "Invalid credentials"}), 401
-    row  = dict(row)   # normalize sqlite3.Row → dict
+    row  = dict(row)
     if not row.get("password_hash") or not check_password_hash(row["password_hash"], pwd):
         return jsonify({"success": False, "message": "Invalid credentials"}), 401
     if row.get("status") != "active":
         return jsonify({"success": False, "message": "Account suspended"}), 403
 
+    # 2FA gate
+    if row.get("totp_enabled"):
+        session["totp_pending_uid"] = row["id"]
+        return jsonify({"success": False, "needs_totp": True, "message": "Enter your 2FA code"}), 200
+
     session["user_id"]    = row["id"]
     session["role"]       = row["role"]
-    session["logged_in"]  = True   # legacy flag retained for safety
+    session["logged_in"]  = True
     audit("login", "user", row["id"], {"method": "password"})
     return jsonify({"success": True, "user": {"id": row["id"], "name": row["name"], "role": row["role"]}})
+
+
+@app.route("/api/auth/login-totp", methods=["POST"])
+def login_totp():
+    """Second step for users with 2FA enabled."""
+    uid = session.get("totp_pending_uid")
+    if not uid:
+        return jsonify({"success": False, "message": "No login in progress"}), 400
+    code = (request.get_json() or {}).get("code", "").strip()
+    if not code or len(code) < 6:
+        return jsonify({"success": False, "message": "Enter the 6-digit code"}), 400
+
+    conn = get_db()
+    cur  = db_execute(conn, "SELECT * FROM users WHERE id = ?", (uid,))
+    row  = cur.fetchone()
+    conn.close()
+    if not row:
+        return jsonify({"success": False, "message": "User not found"}), 404
+    row = dict(row)
+    import pyotp
+    if not row.get("totp_secret") or not pyotp.TOTP(row["totp_secret"]).verify(code, valid_window=1):
+        return jsonify({"success": False, "message": "Invalid code"}), 401
+
+    session.pop("totp_pending_uid", None)
+    session["user_id"]   = row["id"]
+    session["role"]      = row["role"]
+    session["logged_in"] = True
+    audit("login", "user", row["id"], {"method": "password+totp"})
+    return jsonify({"success": True, "user": {"id": row["id"], "name": row["name"], "role": row["role"]}})
+
+
+@app.route("/api/auth/2fa/setup", methods=["POST"])
+@require_auth(roles=["admin"])
+def setup_2fa(_user):
+    """Generate a TOTP secret and return provisioning URI for QR rendering."""
+    import pyotp
+    secret = pyotp.random_base32()
+    conn = get_db()
+    db_execute(conn, "UPDATE users SET totp_secret = ?, totp_enabled = ? WHERE id = ?",
+               (secret, False if USE_PG else 0, _user["id"]))
+    conn.commit(); conn.close()
+    uri = pyotp.totp.TOTP(secret).provisioning_uri(
+        name=_user.get("username") or _user.get("name") or "admin",
+        issuer_name="Prabhu Ventures",
+    )
+    audit("2fa_setup_started", "user", _user["id"])
+    return jsonify({"secret": secret, "uri": uri})
+
+
+@app.route("/api/auth/2fa/verify", methods=["POST"])
+@require_auth(roles=["admin"])
+def verify_2fa_setup(_user):
+    """Confirm the user has scanned the QR code by submitting a valid TOTP."""
+    code = (request.get_json() or {}).get("code", "").strip()
+    if not code:
+        return jsonify({"error": "code required"}), 400
+    import pyotp
+    conn = get_db()
+    cur  = db_execute(conn, "SELECT totp_secret FROM users WHERE id = ?", (_user["id"],))
+    row  = cur.fetchone()
+    if not row or not dict(row).get("totp_secret"):
+        conn.close(); return jsonify({"error": "no 2FA setup in progress"}), 400
+    secret = dict(row)["totp_secret"]
+    if not pyotp.TOTP(secret).verify(code, valid_window=1):
+        conn.close(); return jsonify({"error": "Invalid code"}), 401
+    db_execute(conn, "UPDATE users SET totp_enabled = ? WHERE id = ?",
+               (True if USE_PG else 1, _user["id"]))
+    conn.commit(); conn.close()
+    audit("2fa_enabled", "user", _user["id"])
+    return jsonify({"success": True})
+
+
+@app.route("/api/auth/2fa/disable", methods=["POST"])
+@require_auth(roles=["admin"])
+def disable_2fa(_user):
+    conn = get_db()
+    db_execute(conn,
+        "UPDATE users SET totp_secret = NULL, totp_enabled = ? WHERE id = ?",
+        (False if USE_PG else 0, _user["id"]))
+    conn.commit(); conn.close()
+    audit("2fa_disabled", "user", _user["id"])
+    return jsonify({"success": True})
 
 
 @app.route("/api/auth/request-otp", methods=["POST"])
@@ -1295,6 +1451,124 @@ def delete_case(_user, case_id):
     return jsonify({"success": True})
 
 
+@app.route("/api/cases/<int:case_id>/partial-payment", methods=["POST"])
+@require_auth(roles=["user", "admin"])
+@require_active_subscription
+def add_partial_payment(_user, case_id):
+    """Record a partial repayment against an open case."""
+    data   = request.get_json() or {}
+    amount = float(data.get("amount") or 0)
+    method = (data.get("method") or "").strip() or None
+    note   = (data.get("note") or "").strip() or None
+    if amount <= 0:
+        return jsonify({"error": "amount must be positive"}), 400
+
+    conn = get_db()
+    cur  = db_execute(conn, "SELECT user_id, status FROM cases WHERE id = ?", (case_id,))
+    row  = cur.fetchone()
+    if not row:
+        conn.close(); return jsonify({"error": "Case not found"}), 404
+    row = dict(row)
+    if _user["role"] == "user" and row["user_id"] != _user["id"]:
+        conn.close(); return jsonify({"error": "Forbidden"}), 403
+    if row["status"] != "open":
+        conn.close(); return jsonify({"error": "Only open cases accept partial payments"}), 400
+
+    paid_at = datetime.now().strftime("%Y-%m-%d %H:%M")
+    db_execute(conn,
+        "INSERT INTO partial_payments (case_id, amount, paid_at, method, note, actor_id) VALUES (?, ?, ?, ?, ?, ?)",
+        (case_id, amount, paid_at, method, note, _user["id"]))
+    conn.commit(); conn.close()
+    audit("case_partial_payment", "case", case_id, {"amount": amount, "method": method})
+    record_case_history(case_id, "partial_payment", {"amount": amount, "method": method, "note": note, "paid_at": paid_at})
+    return jsonify({"success": True, "paid_at": paid_at})
+
+
+@app.route("/api/cases/<int:case_id>/partial-payments", methods=["GET"])
+@require_auth(roles=["user", "admin"])
+@require_active_subscription
+def list_partial_payments(_user, case_id):
+    conn = get_db()
+    cur = db_execute(conn, "SELECT user_id FROM cases WHERE id = ?", (case_id,))
+    row = cur.fetchone()
+    if not row:
+        conn.close(); return jsonify({"error": "Case not found"}), 404
+    row = dict(row)
+    if _user["role"] == "user" and row["user_id"] != _user["id"]:
+        conn.close(); return jsonify({"error": "Forbidden"}), 403
+    cur = db_execute(conn, "SELECT * FROM partial_payments WHERE case_id = ? ORDER BY id DESC", (case_id,))
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return jsonify(rows)
+
+
+@app.route("/api/cases/<int:case_id>/renew", methods=["POST"])
+@require_auth(roles=["user", "admin"])
+@require_active_subscription
+def renew_case(_user, case_id):
+    """Extend a loan: pushes hard_deadline by N months, optionally capitalises
+    accrued interest into the principal and resets the loan_date."""
+    data = request.get_json() or {}
+    months = int(data.get("extend_months") or 0)
+    capitalise = bool(data.get("capitalise_interest"))
+    if months <= 0:
+        return jsonify({"error": "extend_months must be a positive integer"}), 400
+
+    conn = get_db()
+    cur  = db_execute(conn, "SELECT * FROM cases WHERE id = ?", (case_id,))
+    row  = cur.fetchone()
+    if not row:
+        conn.close(); return jsonify({"error": "Case not found"}), 404
+    row = dict(row)
+    if _user["role"] == "user" and row.get("user_id") != _user["id"]:
+        conn.close(); return jsonify({"error": "Forbidden"}), 403
+    if row.get("status") != "open":
+        conn.close(); return jsonify({"error": "Only open cases can be renewed"}), 400
+
+    # Push hard_deadline forward
+    from datetime import date as _date
+    base = row.get("hard_deadline")
+    try:
+        base_d = _date.fromisoformat(str(base)[:10]) if base else _date.today()
+    except Exception:
+        base_d = _date.today()
+    new_year  = base_d.year + (base_d.month + months - 1) // 12
+    new_month = (base_d.month + months - 1) % 12 + 1
+    # Clamp day to month end
+    import calendar as _cal
+    new_day = min(base_d.day, _cal.monthrange(new_year, new_month)[1])
+    new_deadline = _date(new_year, new_month, new_day).isoformat()
+
+    new_principal = row.get("money_lent") or 0
+    interest_added = 0
+    if capitalise and row.get("interest_rate") and row.get("loan_date"):
+        m  = _calc_months(row["loan_date"])
+        interest_added = (row.get("money_lent") or 0) * (row["interest_rate"] / 100) * m
+        new_principal = (row.get("money_lent") or 0) + interest_added
+        # Reset loan_date to today so interest accrues from now
+        new_loan_date = _date.today().isoformat()
+        db_execute(conn,
+            "UPDATE cases SET hard_deadline = ?, money_lent = ?, loan_date = ? WHERE id = ?",
+            (new_deadline, round(new_principal, 2), new_loan_date, case_id))
+    else:
+        db_execute(conn,
+            "UPDATE cases SET hard_deadline = ? WHERE id = ?",
+            (new_deadline, case_id))
+    conn.commit(); conn.close()
+
+    audit("case_renew", "case", case_id, {"extend_months": months, "capitalised": capitalise})
+    record_case_history(case_id, "renewed", {
+        "extend_months": months,
+        "new_hard_deadline": new_deadline,
+        "capitalise_interest": capitalise,
+        "interest_added": round(interest_added, 2),
+        "new_principal": round(new_principal, 2),
+    })
+    return jsonify({"success": True, "new_hard_deadline": new_deadline,
+                    "new_principal": round(new_principal, 2),
+                    "interest_capitalised": round(interest_added, 2)})
+
+
 @app.route("/api/cases/<int:case_id>/history", methods=["GET"])
 @require_auth(roles=["user", "admin"])
 @require_active_subscription
@@ -1528,6 +1802,238 @@ def get_dashboard(_user):
 def list_plans():
     conn = get_db()
     cur  = db_execute(conn, "SELECT * FROM plans WHERE active = ? ORDER BY price_inr ASC", (True if USE_PG else 1,))
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return jsonify(rows)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Borrower profile (cases grouped by mobile)
+# ──────────────────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────────────────
+# Multi-branch — each tenant can have multiple branches (locations)
+# ──────────────────────────────────────────────────────────────────────────────
+@app.route("/api/branches", methods=["GET", "POST"])
+@require_auth(roles=["user", "admin"])
+def branches_route(_user):
+    conn = get_db()
+    if request.method == "POST":
+        data    = request.get_json() or {}
+        name    = (data.get("name") or "").strip()
+        addr    = (data.get("address") or "").strip() or None
+        phone   = (data.get("phone") or "").strip() or None
+        is_def  = bool(data.get("is_default"))
+        if not name:
+            conn.close(); return jsonify({"error": "name required"}), 400
+        TRUE_VAL, FALSE_VAL = (True, False) if USE_PG else (1, 0)
+        if is_def:
+            db_execute(conn, "UPDATE branches SET is_default = ? WHERE user_id = ?",
+                       (FALSE_VAL, _user["id"]))
+        db_execute(conn,
+            "INSERT INTO branches (user_id, name, address, phone, is_default) VALUES (?, ?, ?, ?, ?)",
+            (_user["id"], name, addr, phone, TRUE_VAL if is_def else FALSE_VAL))
+        conn.commit()
+        audit("branch_create", "branch", name)
+    cur = db_execute(conn, "SELECT * FROM branches WHERE user_id = ? ORDER BY id ASC", (_user["id"],))
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return jsonify(rows)
+
+
+@app.route("/api/branches/<int:bid>", methods=["DELETE"])
+@require_auth(roles=["user", "admin"])
+def delete_branch(_user, bid):
+    conn = get_db()
+    cur = db_execute(conn, "SELECT user_id FROM branches WHERE id = ?", (bid,))
+    row = cur.fetchone()
+    if not row:
+        conn.close(); return jsonify({"error": "Not found"}), 404
+    if dict(row)["user_id"] != _user["id"]:
+        conn.close(); return jsonify({"error": "Forbidden"}), 403
+    # Unset branch_id on any cases assigned to this branch
+    db_execute(conn, "UPDATE cases SET branch_id = NULL WHERE branch_id = ?", (bid,))
+    db_execute(conn, "DELETE FROM branches WHERE id = ?", (bid,))
+    conn.commit(); conn.close()
+    audit("branch_delete", "branch", bid)
+    return jsonify({"success": True})
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Borrower profile (cases grouped by mobile)
+# ──────────────────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────────────────
+# PDF receipts (lending + closure)
+# ──────────────────────────────────────────────────────────────────────────────
+@app.route("/api/cases/<int:case_id>/receipt", methods=["GET"])
+@require_auth(roles=["user", "admin"])
+@require_active_subscription
+def case_receipt(_user, case_id):
+    """Generate a lending or closure receipt PDF for a case."""
+    kind = request.args.get("type", "lending").strip()       # 'lending' | 'closure'
+    conn = get_db()
+    cur  = db_execute(conn, "SELECT * FROM cases WHERE id = ?", (case_id,))
+    row  = cur.fetchone()
+    if not row:
+        conn.close(); return jsonify({"error": "Case not found"}), 404
+    c = dict(row)
+    if _user["role"] == "user" and c.get("user_id") != _user["id"]:
+        conn.close(); return jsonify({"error": "Forbidden"}), 403
+    cur = db_execute(conn, "SELECT name, business_name, phone, address FROM users WHERE id = ?", (c["user_id"],))
+    lender_row = cur.fetchone()
+    lender = dict(lender_row) if lender_row else {}
+    conn.close()
+
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import mm
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from io import BytesIO
+
+    buf = BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=20*mm, rightMargin=20*mm, topMargin=20*mm, bottomMargin=20*mm)
+    styles = getSampleStyleSheet()
+    h_style    = ParagraphStyle("h", parent=styles["Heading1"], fontSize=20, textColor=colors.HexColor("#4338CA"), spaceAfter=4)
+    sub_style  = ParagraphStyle("sub", parent=styles["Normal"], fontSize=11, textColor=colors.HexColor("#475569"), spaceAfter=16)
+    sec_style  = ParagraphStyle("sec", parent=styles["Heading3"], fontSize=12, textColor=colors.HexColor("#0F172A"), spaceBefore=14, spaceAfter=6)
+    body_style = ParagraphStyle("body", parent=styles["Normal"], fontSize=10.5, leading=14, textColor=colors.HexColor("#334155"))
+
+    story = []
+    title = "LOAN RECEIPT" if kind == "lending" else "CLOSURE RECEIPT"
+    story += [Paragraph("Prabhu Ventures", h_style),
+              Paragraph(f"{lender.get('business_name') or lender.get('name') or 'Lender'} · {title}", sub_style)]
+
+    def kv_table(rows):
+        t = Table(rows, colWidths=[55*mm, None], hAlign="LEFT")
+        t.setStyle(TableStyle([
+            ("FONTNAME",  (0,0), (-1,-1), "Helvetica"),
+            ("FONTSIZE",  (0,0), (-1,-1), 10),
+            ("TEXTCOLOR", (0,0), (0,-1),  colors.HexColor("#64748B")),
+            ("TEXTCOLOR", (1,0), (1,-1),  colors.HexColor("#0F172A")),
+            ("VALIGN",    (0,0), (-1,-1), "TOP"),
+            ("BOTTOMPADDING", (0,0), (-1,-1), 5),
+            ("LINEBELOW", (0,0), (-1,-1),  0.4, colors.HexColor("#E2E8F0")),
+        ]))
+        return t
+
+    story += [Paragraph("Case Details", sec_style), kv_table([
+        ["Case ID",      f"#{c['id']}"],
+        ["Status",       (c.get("status") or "").upper()],
+        ["Date Issued",  c.get("loan_date") or "—"],
+        ["Date Closed",  c.get("closed_at") or "—"] if kind == "closure" else ["Hard Deadline", c.get("hard_deadline") or "—"],
+    ])]
+
+    story += [Paragraph("Borrower", sec_style), kv_table([
+        ["Name",          c.get("name") or "—"],
+        ["Father's Name", c.get("father_name") or "—"],
+        ["Mobile",        c.get("mobile") or "—"],
+        ["Address",       c.get("address") or "—"],
+    ])]
+
+    story += [Paragraph("Pledged Item", sec_style), kv_table([
+        ["Description", c.get("items") or "—"],
+        ["Metal",       c.get("metal") or "—"],
+        ["Weight",      f"{c.get('weight')} g" if c.get("weight") else "—"],
+    ])]
+
+    money_rows = [
+        ["Principal Amount", f"INR {(c.get('money_lent') or 0):,.2f}"],
+        ["Interest Rate",    f"{c.get('interest_rate')}% per month" if c.get("interest_rate") else "—"],
+    ]
+    if kind == "closure":
+        money_rows.append(["Amount Received", f"INR {(c.get('amount_received') or 0):,.2f}"])
+        if c.get("interest_rate") and c.get("loan_date"):
+            end = None
+            if c.get("closed_at"):
+                try: end = date_type.fromisoformat(str(c["closed_at"])[:10])
+                except Exception: pass
+            m = _calc_months(c["loan_date"], end)
+            interest = (c.get("money_lent") or 0) * (c["interest_rate"]/100) * m
+            money_rows.append(["Months Charged", str(m)])
+            money_rows.append(["Interest Computed", f"INR {interest:,.2f}"])
+            money_rows.append(["Total Due", f"INR {((c.get('money_lent') or 0) + interest):,.2f}"])
+    story += [Paragraph("Financial Summary", sec_style), kv_table(money_rows)]
+
+    story += [
+        Spacer(1, 24*mm),
+        Paragraph("This is a system-generated receipt. Signatures below confirm acceptance of the above terms.", body_style),
+        Spacer(1, 18*mm),
+        Table([["_________________________", "_________________________"],
+               ["Borrower Signature",       "Lender Signature"]],
+              colWidths=[80*mm, 80*mm], hAlign="LEFT",
+              style=TableStyle([("ALIGN", (0,0), (-1,-1), "CENTER"),
+                                ("FONTSIZE", (0,0), (-1,-1), 9),
+                                ("TEXTCOLOR", (0,1), (-1,1), colors.HexColor("#64748B"))])),
+    ]
+
+    doc.build(story)
+    pdf = buf.getvalue(); buf.close()
+    from flask import Response
+    fname = f"PrabhuVentures-{kind}-case-{c['id']}.pdf"
+    return Response(pdf, mimetype="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'})
+
+
+@app.route("/api/borrowers", methods=["GET"])
+@require_auth(roles=["user", "admin"])
+@require_active_subscription
+def list_borrowers(_user):
+    """Unique borrowers (by mobile) with aggregate stats for this tenant."""
+    conn = get_db()
+    sql = f"SELECT {_LIST_COLS} FROM cases WHERE mobile IS NOT NULL AND mobile <> ''"
+    params = []
+    if _user["role"] == "user":
+        sql += " AND user_id = ?"; params.append(_user["id"])
+    cur = db_execute(conn, sql, params)
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+
+    borrowers = {}
+    today = date_type.today()
+    for c in rows:
+        key = (c.get("mobile") or "").strip()
+        if not key: continue
+        b = borrowers.setdefault(key, {
+            "mobile": key, "name": c.get("name"),
+            "cases": 0, "open": 0, "closed": 0, "bad_debt": 0,
+            "total_lent": 0, "outstanding": 0, "first_loan": None, "last_loan": None,
+        })
+        b["cases"] += 1
+        b["total_lent"] += c.get("money_lent") or 0
+        if c.get("status") == "open":     b["open"]     += 1
+        if c.get("status") == "closed":   b["closed"]   += 1
+        if c.get("status") == "bad_debt": b["bad_debt"] += 1
+        if c.get("status") == "open" and c.get("money_lent") and c.get("interest_rate") and c.get("loan_date"):
+            try:
+                months = _calc_months(c["loan_date"])
+                b["outstanding"] += c["money_lent"] * (1 + c["interest_rate"] / 100 * months)
+            except Exception: pass
+        ld = c.get("loan_date")
+        if ld:
+            if b["first_loan"] is None or ld < b["first_loan"]: b["first_loan"] = ld
+            if b["last_loan"]  is None or ld > b["last_loan"]:  b["last_loan"]  = ld
+    out = sorted(borrowers.values(), key=lambda x: x["total_lent"], reverse=True)
+    for b in out:
+        b["total_lent"]  = round(b["total_lent"], 2)
+        b["outstanding"] = round(b["outstanding"], 2)
+    return jsonify(out)
+
+
+@app.route("/api/borrowers/<phone>/cases", methods=["GET"])
+@require_auth(roles=["user", "admin"])
+@require_active_subscription
+def borrower_cases(_user, phone):
+    """All cases for a given borrower mobile, scoped to tenant."""
+    phone = (phone or "").strip()
+    if not phone:
+        return jsonify([])
+    conn = get_db()
+    sql = f"SELECT {_LIST_COLS} FROM cases WHERE mobile = ?"
+    params = [phone]
+    if _user["role"] == "user":
+        sql += " AND user_id = ?"; params.append(_user["id"])
+    sql += " ORDER BY id DESC"
+    cur = db_execute(conn, sql, params)
     rows = [dict(r) for r in cur.fetchall()]
     conn.close()
     return jsonify(rows)
@@ -1885,6 +2391,66 @@ def admin_extend_sub(_user, user_id):
     conn.commit(); conn.close()
     audit("sub_extend", "subscription", sub["id"], {"days": days, "user_id": user_id})
     return jsonify({"success": True, "expires_at": new_exp.isoformat()})
+
+
+@app.route("/api/admin/users/<int:uid>/kyc", methods=["POST"])
+@require_auth(roles=["admin"])
+def admin_set_kyc(_user, uid):
+    """Admin marks a lender's KYC as verified / rejected / pending."""
+    data = request.get_json() or {}
+    status = (data.get("status") or "").strip()
+    if status not in ("verified", "rejected", "pending"):
+        return jsonify({"error": "status must be verified|rejected|pending"}), 400
+    conn = get_db()
+    db_execute(conn, "UPDATE users SET kyc_status = ? WHERE id = ? AND role = 'user'", (status, uid))
+    conn.commit(); conn.close()
+    audit("kyc_status_change", "user", uid, {"status": status})
+    return jsonify({"success": True})
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# SMS reminders (admin-triggered now; cron-friendly endpoint)
+# ──────────────────────────────────────────────────────────────────────────────
+@app.route("/api/admin/send-reminders", methods=["POST"])
+@require_auth(roles=["admin"])
+def send_reminders(_user):
+    """Find open cases with hard_deadline ≤ 7 days away or overdue, SMS each
+    borrower via the configured SMS provider. Admin-triggered for now; can be
+    wired to a daily cron later (Render cron job hitting this endpoint)."""
+    today = date_type.today()
+    seven = today + timedelta(days=7)
+    conn = get_db()
+    cur = db_execute(conn,
+        f"SELECT {_LIST_COLS} FROM cases WHERE status = 'open' AND mobile IS NOT NULL "
+        "AND mobile <> '' AND hard_deadline IS NOT NULL AND hard_deadline <> ''")
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+
+    sms = get_sms_provider()
+    sent, skipped = 0, 0
+    for c in rows:
+        try:
+            dl = date_type.fromisoformat(str(c["hard_deadline"])[:10])
+        except Exception:
+            skipped += 1; continue
+        if dl > seven:
+            skipped += 1; continue
+        msg = (
+            f"Prabhu Ventures: Loan #{c['id']} (₹{int(c.get('money_lent') or 0):,}) "
+            f"is due by {dl.isoformat()}. Please settle or contact us."
+            if dl >= today else
+            f"Prabhu Ventures: Loan #{c['id']} (₹{int(c.get('money_lent') or 0):,}) "
+            f"is overdue (deadline {dl.isoformat()}). Asset may be confiscated."
+        )
+        try:
+            sms.send(c["mobile"], msg)
+            record_case_history(c["id"], "reminder_sent", {"to": c["mobile"], "deadline": dl.isoformat()})
+            sent += 1
+        except Exception as e:
+            print(f"[reminder] failed for case {c['id']}: {e}", flush=True)
+            skipped += 1
+    audit("reminders_sent", "system", None, {"sent": sent, "skipped": skipped, "scanned": len(rows)})
+    return jsonify({"success": True, "sent": sent, "skipped": skipped, "scanned": len(rows)})
 
 
 @app.route("/api/admin/admins", methods=["GET"])
