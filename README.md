@@ -446,6 +446,7 @@ commit going forward will append a row here.
 | 2026-06 | scaling-doc | Added `docs/SCALING.md` — full architecture + cost model for scaling to 1 crore (10 M) tenants. Phased migration plan, target architecture, per-component deep dives, capacity model, ~$220 – 380 K/mo cost ballpark. Pure docs, no code changes. |
 | 2026-06 | gold-rate | Live gold-rate widget. New `GET /api/gold-rate` endpoint pulls 24k/22k/18k INR/g from a free public spot-price API (USD/oz × USD-INR ÷ 31.1035), 1-hour server cache, hard fallback on API failure. New `<GoldRateBar>` shown on Add New Case + Dashboard. Add-case shows a "Suggested loan @ 75% LTV" hint with one-click apply when metal=Gold and weight is filled. |
 | 2026-06 | phase3-bundle | **8 Phase-3 features shipped together (#5b–#5i)**: borrower profile (`GET /api/borrowers`, `/api/borrowers/<phone>/cases`, history hint on Add Case form); loan renewal (`POST /api/cases/<id>/renew` with deadline push + optional interest capitalisation); partial payments (new `partial_payments` table, `POST/GET /api/cases/<id>/partial-payment[s]`, ledger inside case modal); PDF receipts via reportlab (`GET /api/cases/<id>/receipt?type=lending\|closure`); 2FA for admins via pyotp (`POST /api/auth/2fa/{setup,verify,disable}`, two-step login at `/api/auth/login-totp`); KYC admin verify/reject (`POST /api/admin/users/<id>/kyc`, dropdown action on Lenders tab); multi-branch (`branches` table, `GET/POST /api/branches`, `DELETE /api/branches/<id>`, manage inside ProfilePanel); SMS reminders (`POST /api/admin/send-reminders` — finds open cases with deadline ≤7d or overdue, sends via configured SMS provider). |
+| 2026-06 | i18n-expand | Major translation expansion (#1). TR map grown from ~40 to **103 keys × 16 languages** (≈1,650 translation strings). Landing page hero, badges, feature/about/CTA sections, footer, "How it works" steps, AuthModal headings, ProfilePanel sections, AdminConsole tabs all now translate live with language switch. Remaining English fallbacks: long descriptive paragraphs in feature cards, error toasts, and admin-only labels. |
 
 ---
 
@@ -480,7 +481,7 @@ Tracked as separate user requests; expected to span several sessions.
 - [x] Formal KYC capture + admin verify/reject/pending workflow
 - [x] Multi-branch support (manage branches inside profile panel)
 - [x] SMS reminders (admin-triggered sweep for 7-day deadlines + overdue)
-- [ ] Full i18n coverage (every visible string × 16 languages)
+- [x] i18n major expansion (103 keys × 16 langs — landing, modals, profile, admin tabs)
 - [ ] Move language + theme controls into the profile menu
 - [ ] 1 Cr scaling architecture doc
 - [ ] Live gold rate widget
@@ -534,4 +535,4 @@ If you're a Claude session picking this up, here's what's important:
 
 ---
 
-_Last updated: 2026-06-01 — commit `phase3-bundle`_
+_Last updated: 2026-06-01 — commit `i18n-expand`_
