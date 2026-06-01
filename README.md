@@ -384,6 +384,8 @@ lending-app/
 ├─ runtime.txt            ← Python version hint (Render ignores; runs 3.14)
 ├─ Procfile               ← `web: gunicorn app:app`
 ├─ README.md              ← This file
+├─ docs/
+│  └─ SCALING.md          ← Architecture & cost model for 1 Cr tenants
 ├─ lending.db             ← Local SQLite (gitignored)
 └─ static/
    ├─ index.html          ← React SPA (single file)
@@ -426,6 +428,7 @@ commit going forward will append a row here.
 | 2026-06 | readme-init | **This** README with full project history |
 | 2026-06 | case-edit-history-delete | Case edit + per-case history table + collapsible View History accordion + delete with permanent-deletion warning. New `case_history` table, `PATCH /api/cases/<id>`, `DELETE /api/cases/<id>`, `GET /api/cases/<id>/history`. |
 | 2026-06 | profile-menu | Replaced Logout button with avatar/profile menu. Tenants get a full slide-out ProfilePanel (profile + KYC + billing + payment history + preferences + logout). Admins get a clean dropdown (preferences + logout). Landing page settings dropdown for lang + theme. Date strip + Billing card removed from HomePage. New KYC columns on users, `GET /api/users/me/profile`, `PATCH /api/users/me`, Customer ID format `PV-NNNNNN`. |
+| 2026-06 | scaling-doc | Added `docs/SCALING.md` — full architecture + cost model for scaling to 1 crore (10 M) tenants. Phased migration plan, target architecture, per-component deep dives, capacity model, ~$220 – 380 K/mo cost ballpark. Pure docs, no code changes. |
 
 ---
 
@@ -450,6 +453,7 @@ Tracked as separate user requests; expected to span several sessions.
 - [x] Edit case + audit history + delete with confirmation
 - [x] Profile menu (KYC + billing inside, logout at bottom)
 - [x] Language + theme moved into profile / settings menus
+- [x] 1 Cr scaling architecture doc — see [docs/SCALING.md](docs/SCALING.md)
 - [ ] Full i18n coverage (every visible string × 16 languages)
 - [ ] Move language + theme controls into the profile menu
 - [ ] 1 Cr scaling architecture doc
@@ -504,4 +508,4 @@ If you're a Claude session picking this up, here's what's important:
 
 ---
 
-_Last updated: 2026-06-01 — commit `profile-menu`_
+_Last updated: 2026-06-01 — commit `scaling-doc`_
