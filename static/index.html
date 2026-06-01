@@ -3884,6 +3884,17 @@
       setMe({ authenticated: false }); setPage('home');
     };
 
+    // ⚠️ Rules of Hooks: declare ALL hooks before any early return.
+    const [profileOpen, setProfileOpen] = useState(false);
+
+    const isUser  = me?.user?.role === 'user';
+    const sub     = me?.subscription;
+
+    // Force expired tenants into the profile (which contains billing)
+    useEffect(() => {
+      if (isUser && sub && !sub.active) setProfileOpen(true);
+    }, [isUser, sub]);
+
     const C = dark ? DARK : LIGHT;
 
     if (me === null) return (
@@ -3894,17 +3905,7 @@
 
     const auth = !!me.authenticated;
     const user = me.user;
-    const sub  = me.subscription;
-    const isUser  = user?.role === 'user';
     const isAdmin = user?.role === 'admin';
-
-    const [profileOpen, setProfileOpen] = useState(false);
-
-    // Force tenants who are expired into the profile (which contains billing)
-    useEffect(() => {
-      if (isUser && sub && !sub.active) setProfileOpen(true);
-    }, [isUser, sub]);
-
     const openProfile = () => setProfileOpen(true);
 
     return (
