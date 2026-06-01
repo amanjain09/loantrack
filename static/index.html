@@ -1567,7 +1567,6 @@
                   icon="👤"
                   title="Profile Details"
                   summary={`${p?.name || ''}${p?.email ? ' · ' + p.email : ''}`}
-                  defaultOpen
                   action={!editing && (
                     <Btn variant="secondary" onClick={startEdit} style={{ padding: '4px 10px', fontSize: 11.5 }}>Edit</Btn>
                   )}
