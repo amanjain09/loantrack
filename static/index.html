@@ -202,24 +202,18 @@
   ];
 
   // ── Brand logo ────────────────────────────────────────────────────────────
-  // Source PNG has been pre-cropped to 512×512 with the PV monogram dead
-  // centre, so we just cover + centre. A radial mask softly fades the
-  // corners into whatever background sits behind the logo.
+  // Renders /static/logo.png as-is. Flat, no mask, no fade.
   function Logo({ size = 40, glow = false, style: s = {} }) {
     return (
-      <div style={{
-        width: size, height: size, flexShrink: 0,
-        backgroundImage: 'url(/static/logo.png)',
-        backgroundRepeat: 'no-repeat',
-        backgroundSize:    'cover',
-        backgroundPosition:'center',
-        WebkitMaskImage: 'radial-gradient(circle at 50% 50%, #000 58%, transparent 92%)',
-        maskImage:       'radial-gradient(circle at 50% 50%, #000 58%, transparent 92%)',
-        WebkitMaskRepeat:'no-repeat', maskRepeat:'no-repeat',
-        WebkitMaskSize:  '100% 100%',       maskSize:  '100% 100%',
-        filter: glow ? 'drop-shadow(0 6px 22px rgba(56,189,248,0.45))' : 'none',
-        ...s,
-      }} />
+      <img
+        src="/static/logo.png" alt="Prabhu Ventures"
+        style={{
+          width: size, height: size, flexShrink: 0, display: 'block',
+          objectFit: 'contain', objectPosition: 'center',
+          filter: glow ? 'drop-shadow(0 6px 22px rgba(56,189,248,0.45))' : 'none',
+          ...s,
+        }}
+      />
     );
   }
 
