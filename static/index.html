@@ -1339,56 +1339,53 @@
   //   • Logout at the very bottom
   // ──────────────────────────────────────────────────────────────────────────
   // ──────────────────────────────────────────────────────────────────────────
-  // ProfilePanel — slide-out, collapsible-section layout (Zepto-style)
-  //   • Soft gradient hero card with avatar + customer-id + sub chip
-  //   • Each section is a touch-friendly accordion: icon · title · summary · chevron
-  //   • Smooth open/close, default closed (except Profile by default)
-  //   • Logout pinned to the footer
+  // ProfilePanel — compact list-style (Groww-inspired)
+  //   • Tight header: small avatar · name · customer-id · close button
+  //   • Slim contact-strip row (phone + subscription chip)
+  //   • Sections render as flat list items inside a single card with
+  //     hair-line dividers — no shadows, no per-item borders
+  //   • Each row: 30 px icon · title (13.5 px) · summary (11.5 px) · chevron
+  //   • Logout pinned to footer as a ghost full-width button
   // ──────────────────────────────────────────────────────────────────────────
-  function AccordionSection({ icon, title, summary, badge, defaultOpen, children, action }) {
+  function AccordionRow({ icon, title, summary, badge, defaultOpen, children, action, last }) {
     const { C } = useTheme();
     const [open, setOpen] = useState(!!defaultOpen);
     return (
-      <div style={{
-        background: C.card, borderRadius: 16, border: `1px solid ${C.border}`,
-        marginBottom: 12, overflow: 'hidden',
-        boxShadow: open ? `0 8px 24px rgba(0,0,0,${C.bg === DARK.bg ? '0.35' : '0.06'})` : 'none',
-        transition: 'box-shadow 0.25s ease',
-      }}>
+      <div style={{ borderBottom: last ? 'none' : `1px solid ${C.border}` }}>
         <button
           onClick={() => setOpen(o => !o)}
           style={{
-            width: '100%', display: 'flex', alignItems: 'center', gap: 12,
+            width: '100%', display: 'flex', alignItems: 'center', gap: 11,
             background: 'transparent', border: 'none', cursor: 'pointer',
-            padding: '14px 16px', textAlign: 'left',
+            padding: '11px 14px', textAlign: 'left',
           }}
         >
           <div style={{
-            width: 38, height: 38, borderRadius: 12,
-            background: C.primary + '15', color: C.primary,
+            width: 30, height: 30, borderRadius: 8,
+            background: C.primary + '14', color: C.primary,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 17, flexShrink: 0,
+            fontSize: 14, flexShrink: 0,
           }}>{icon}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ fontSize: 14.5, fontWeight: 700, color: C.text, lineHeight: 1.15 }}>{title}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 600, color: C.text, lineHeight: 1.2 }}>{title}</div>
               {badge}
             </div>
             {summary && !open && (
-              <div style={{ fontSize: 12.5, color: C.muted, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {summary}
               </div>
             )}
           </div>
           <span style={{
-            color: C.muted, fontSize: 14, flexShrink: 0,
-            transition: 'transform 0.25s ease',
+            color: C.muted, fontSize: 11, flexShrink: 0, opacity: 0.7,
+            transition: 'transform 0.2s ease',
             transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
           }}>▾</span>
         </button>
         {open && (
-          <div className="fade-in" style={{ padding: '4px 16px 18px', borderTop: `1px solid ${C.border}` }}>
-            {action && <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '10px 0 12px' }}>{action}</div>}
+          <div className="fade-in" style={{ padding: '2px 14px 12px 53px' }}>
+            {action && <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>{action}</div>}
             {children}
           </div>
         )}
@@ -1484,217 +1481,208 @@
     const Row = ({ label, value }) => (
       <div style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-        gap: 12, padding: '9px 0', borderBottom: `1px solid ${C.border}`,
+        gap: 10, padding: '6px 0', borderBottom: `1px solid ${C.border}`,
       }}>
-        <span style={{ color: C.muted, fontSize: 12.5, flexShrink: 0 }}>{label}</span>
-        <span style={{ color: C.text, fontWeight: 600, fontSize: 13.5, textAlign: 'right', wordBreak: 'break-word' }}>{value || '—'}</span>
+        <span style={{ color: C.muted, fontSize: 11.5, flexShrink: 0 }}>{label}</span>
+        <span style={{ color: C.text, fontWeight: 600, fontSize: 12.5, textAlign: 'right', wordBreak: 'break-word' }}>{value || '—'}</span>
       </div>
     );
 
-    // Subscription summary chip (visible always in hero card)
-    const subChip = sub ? (
+    // Compact monochrome sub chip for the contact strip
+    const subChipMini = sub ? (
       <span style={{
         display: 'inline-flex', alignItems: 'center', gap: 5,
-        padding: '4px 11px', borderRadius: 999,
-        background: sub.active ? 'rgba(74,222,128,0.18)' : 'rgba(248,113,113,0.18)',
-        color: sub.active ? '#86EFAC' : '#FCA5A5',
-        fontSize: 11.5, fontWeight: 700, letterSpacing: '0.02em',
+        padding: '2px 8px', borderRadius: 999,
+        background: sub.active ? C.successLight : C.errorLight,
+        color:      sub.active ? C.success      : C.error,
+        fontSize: 10.5, fontWeight: 800, letterSpacing: '0.04em',
       }}>
         <span style={{
-          width: 6, height: 6, borderRadius: '50%',
-          background: sub.active ? '#4ADE80' : '#F87171',
-          boxShadow: sub.active ? '0 0 0 3px rgba(74,222,128,0.25)' : 'none',
+          width: 5, height: 5, borderRadius: '50%',
+          background: sub.active ? C.success : C.error,
         }} />
         {sub.active
-          ? `${(sub.plan_code || '').replace('_', ' ').toUpperCase()} · ${sub.days_left}d left`
+          ? `${(sub.plan_code || '').replace('_', ' ').toUpperCase()} · ${sub.days_left}d`
           : 'EXPIRED'}
       </span>
     ) : null;
 
     return (
       <div onClick={e => e.target === e.currentTarget && onClose()} style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 600,
-        backdropFilter: 'blur(4px)',
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 600,
+        backdropFilter: 'blur(3px)',
       }}>
         <div className="fade-in" style={{
-          position: 'absolute', top: 0, right: 0, width: 'min(460px, 100vw)', height: '100vh',
+          position: 'absolute', top: 0, right: 0, width: 'min(380px, 100vw)', height: '100vh',
           background: C.bg, borderLeft: `1px solid ${C.border}`,
-          boxShadow: '-30px 0 60px rgba(0,0,0,0.4)',
+          boxShadow: '-20px 0 50px rgba(0,0,0,0.35)',
           display: 'flex', flexDirection: 'column',
         }}>
-          {/* ── Hero card (soft gradient) ── */}
+          {/* ── Compact header ── */}
           <div style={{
-            background: `linear-gradient(135deg, ${C.primary} 0%, ${C.cyan} 100%)`,
-            color: '#fff', padding: '20px 22px 22px',
-            display: 'flex', flexDirection: 'column', gap: 14, flexShrink: 0,
-            position: 'relative',
+            background: C.card, padding: '12px 14px', flexShrink: 0,
+            borderBottom: `1px solid ${C.border}`,
+            display: 'flex', alignItems: 'center', gap: 10,
           }}>
-            <div style={{ position: 'absolute', top: 14, right: 14 }}>
-              <button onClick={onClose} aria-label="Close" style={{
-                background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)',
-                borderRadius: 10, width: 32, height: 32, color: '#fff', cursor: 'pointer', fontSize: 14,
-              }}>✕</button>
+            <Avatar name={p?.name || user?.name} size={40} bg={C.primary + '22'} color={C.primary} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 14.5, fontWeight: 700, color: C.text, lineHeight: 1.2 }}>{p?.name || user?.name}</div>
+              {p?.customer_id && (
+                <div style={{ fontSize: 11, color: C.muted, fontFamily: 'ui-monospace, monospace', marginTop: 1 }}>
+                  {p.customer_id}
+                </div>
+              )}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <Avatar name={p?.name || user?.name} size={56} bg="rgba(255,255,255,0.25)" />
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 18, fontWeight: 800, lineHeight: 1.15 }}>{p?.name || user?.name}</div>
-                {p?.customer_id && (
-                  <div style={{ fontSize: 11.5, opacity: 0.9, fontWeight: 600, marginTop: 3, fontFamily: 'ui-monospace, monospace' }}>
-                    {p.customer_id}
-                  </div>
-                )}
-                {p?.phone && <div style={{ fontSize: 12.5, opacity: 0.82, marginTop: 2 }}>+91 {p.phone}</div>}
-              </div>
-            </div>
-            {subChip && <div>{subChip}</div>}
+            <button onClick={onClose} aria-label="Close" style={{
+              background: C.bg, border: `1px solid ${C.border}`,
+              borderRadius: 8, width: 28, height: 28, color: C.muted, cursor: 'pointer', fontSize: 13,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>✕</button>
           </div>
 
-          {/* ── Scrollable accordion body ── */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '14px 14px 14px' }}>
+          {/* ── Slim contact / sub strip ── */}
+          {(p?.phone || subChipMini) && (
+            <div style={{
+              padding: '7px 14px', flexShrink: 0,
+              background: C.cardAlt, borderBottom: `1px solid ${C.border}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+              fontSize: 12, color: C.muted,
+            }}>
+              <span>{p?.phone ? `+91 ${p.phone}` : ''}</span>
+              {subChipMini}
+            </div>
+          )}
+
+          {/* ── Scrollable list ── */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px 16px' }}>
             {!data ? (
-              <div style={{ color: C.faint, textAlign: 'center', padding: 30 }}>Loading…</div>
+              <div style={{ color: C.faint, textAlign: 'center', padding: 20, fontSize: 13 }}>Loading…</div>
             ) : (
-              <>
+              <div style={{
+                background: C.card, borderRadius: 12, border: `1px solid ${C.border}`,
+                overflow: 'hidden',
+              }}>
                 {/* Profile Details */}
-                <AccordionSection
+                <AccordionRow
                   icon="👤"
                   title="Profile Details"
                   summary={`${p?.name || ''}${p?.email ? ' · ' + p.email : ''}`}
                   defaultOpen
                   action={!editing && (
-                    <Btn variant="secondary" onClick={startEdit} style={{ padding: '6px 14px', fontSize: 12.5 }}>✏️ Edit</Btn>
+                    <Btn variant="secondary" onClick={startEdit} style={{ padding: '4px 10px', fontSize: 11.5 }}>Edit</Btn>
                   )}
                 >
                   {!editing ? (
                     <div>
-                      <Row label="Name"      value={p?.name} />
-                      <Row label="Email"     value={p?.email} />
-                      <Row label="Phone"     value={p?.phone ? `+91 ${p.phone} · verified ✓` : null} />
-                      <Row label="Business"  value={p?.business_name} />
-                      <Row label="Address"   value={p?.address} />
+                      <Row label="Name"     value={p?.name} />
+                      <Row label="Email"    value={p?.email} />
+                      <Row label="Phone"    value={p?.phone ? `+91 ${p.phone} · ✓` : null} />
+                      <Row label="Business" value={p?.business_name} />
+                      <Row label="Address"  value={p?.address} />
                     </div>
                   ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                       <Input label="Name" required value={form.name} onChange={ef('name')} />
                       <Input label="Email" type="email" value={form.email} onChange={ef('email')} />
                       <Input label="Business / Firm" value={form.business_name} onChange={ef('business_name')} />
                       <Textarea label="Address" rows={2} value={form.address} onChange={ef('address')} />
                       {editErr && <Alert type="error">{editErr}</Alert>}
-                      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
-                        <Btn variant="secondary" onClick={() => { setEditing(false); setEditErr(''); }}>Cancel</Btn>
-                        <Btn onClick={doSave} loading={savingForm}>Save Changes</Btn>
+                      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 2 }}>
+                        <Btn variant="secondary" onClick={() => { setEditing(false); setEditErr(''); }} style={{ padding: '7px 12px', fontSize: 12 }}>Cancel</Btn>
+                        <Btn onClick={doSave} loading={savingForm} style={{ padding: '7px 12px', fontSize: 12 }}>Save</Btn>
                       </div>
                     </div>
                   )}
-                </AccordionSection>
+                </AccordionRow>
 
                 {/* KYC */}
-                <AccordionSection
+                <AccordionRow
                   icon="🪪"
-                  title="KYC Verification"
+                  title="KYC"
                   summary={p?.kyc_status === 'verified' ? 'Verified ✓' : `Status: ${p?.kyc_status || 'pending'}`}
                   badge={
                     <span style={{
-                      padding: '2px 9px', borderRadius: 12, fontSize: 10.5, fontWeight: 800,
+                      padding: '1px 7px', borderRadius: 10, fontSize: 9.5, fontWeight: 800,
                       background: p?.kyc_status === 'verified' ? C.successLight : C.amberLight,
                       color:      p?.kyc_status === 'verified' ? C.success      : C.amber,
                       textTransform: 'uppercase', letterSpacing: '0.04em',
                     }}>{p?.kyc_status || 'pending'}</span>
                   }
                 >
-                  {!editing ? (
-                    <div>
-                      <Row label="Aadhaar" value={maskAadhaar(p?.aadhaar)} />
-                      <Row label="PAN"     value={maskPan(p?.pan)} />
-                      <Row label="DOB"     value={p?.dob} />
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                      <Input label="Aadhaar Number" value={form.aadhaar} onChange={ef('aadhaar')} placeholder="1234-5678-9012" />
-                      <Input label="PAN" value={form.pan} onChange={ef('pan')} placeholder="ABCDE1234F" />
-                      <Input label="Date of Birth" type="date" value={form.dob} onChange={ef('dob')} />
-                      <div style={{ fontSize: 12, color: C.faint }}>Save from Profile Details above.</div>
-                    </div>
-                  )}
-                </AccordionSection>
+                  <div>
+                    <Row label="Aadhaar" value={maskAadhaar(p?.aadhaar)} />
+                    <Row label="PAN"     value={maskPan(p?.pan)} />
+                    <Row label="DOB"     value={p?.dob} />
+                  </div>
+                </AccordionRow>
 
                 {/* Subscription & Billing */}
-                <AccordionSection
+                <AccordionRow
                   icon="💳"
-                  title="Subscription & Billing"
+                  title="Subscription"
                   summary={sub ? `${(sub.plan_code || '').replace('_',' ')} · ${sub.active ? sub.days_left + 'd left' : 'expired'}` : 'No active plan'}
-                  badge={sub && (
-                    <span style={{
-                      padding: '2px 9px', borderRadius: 12, fontSize: 10.5, fontWeight: 800,
-                      background: sub.active ? C.successLight : C.errorLight,
-                      color:      sub.active ? C.success      : C.error,
-                      textTransform: 'uppercase', letterSpacing: '0.04em',
-                    }}>{sub.effective_status || sub.status}</span>
-                  )}
                 >
                   {sub && (
                     <div style={{
-                      background: C.bg, borderRadius: 12, padding: '14px 16px', marginBottom: 14,
+                      background: C.bg, borderRadius: 10, padding: '10px 12px', marginBottom: 10,
                       border: `1px solid ${C.border}`,
                     }}>
-                      <div style={{ fontSize: 18, fontWeight: 800, color: C.text }}>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: C.text }}>
                         {String(sub.plan_code).replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}
                       </div>
-                      <div style={{ fontSize: 12.5, color: sub.active ? C.success : C.error, fontWeight: 700, marginTop: 2 }}>
-                        {sub.active ? `${sub.days_left} day${sub.days_left===1?'':'s'} remaining` : 'Expired — renew below'}
+                      <div style={{ fontSize: 11.5, color: sub.active ? C.success : C.error, fontWeight: 700, marginTop: 1 }}>
+                        {sub.active ? `${sub.days_left} day${sub.days_left===1?'':'s'} remaining` : 'Expired'}
                       </div>
                       {sub.expires_at_iso && (
-                        <div style={{ fontSize: 11.5, color: C.faint, marginTop: 3 }}>
-                          Until {new Date(sub.expires_at_iso).toLocaleDateString('en-IN', { day:'numeric', month:'long', year:'numeric' })}
+                        <div style={{ fontSize: 10.5, color: C.faint, marginTop: 2 }}>
+                          Until {new Date(sub.expires_at_iso).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' })}
                         </div>
                       )}
                     </div>
                   )}
-                  {billErr && <div style={{ marginBottom: 10 }}><Alert type="error">{billErr}</Alert></div>}
-                  {billOK  && <div style={{ marginBottom: 10 }}><Alert type="success">{billOK}</Alert></div>}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  {billErr && <div style={{ marginBottom: 8 }}><Alert type="error">{billErr}</Alert></div>}
+                  {billOK  && <div style={{ marginBottom: 8 }}><Alert type="success">{billOK}</Alert></div>}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                     {plans.map(pl => {
                       const isCurrent = sub?.plan_code === pl.code && sub?.active;
                       return (
                         <div key={pl.code} style={{
-                          background: C.bg, borderRadius: 12, padding: '12px 14px',
-                          border: `2px solid ${isCurrent ? C.success : C.border}`,
-                          transition: 'border-color 0.2s ease',
+                          background: C.bg, borderRadius: 10, padding: '9px 11px',
+                          border: `1.5px solid ${isCurrent ? C.success : C.border}`,
                         }}>
-                          <div style={{ fontSize: 11, fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{pl.name}</div>
-                          <div style={{ fontSize: 19, fontWeight: 800, color: C.text, marginTop: 4 }}>₹{Number(pl.price_inr).toLocaleString('en-IN')}</div>
-                          <div style={{ fontSize: 11, color: C.faint, marginTop: 2 }}>{pl.duration_days} days</div>
-                          <Btn onClick={() => buy(pl.code)} loading={busyPlan === pl.code} disabled={isCurrent} style={{ width: '100%', marginTop: 12, padding: '7px 10px', fontSize: 12 }}>
+                          <div style={{ fontSize: 10, fontWeight: 800, color: C.muted, textTransform: 'uppercase' }}>{pl.name}</div>
+                          <div style={{ fontSize: 15, fontWeight: 800, color: C.text, marginTop: 2 }}>₹{Number(pl.price_inr).toLocaleString('en-IN')}</div>
+                          <div style={{ fontSize: 10, color: C.faint, marginTop: 1 }}>{pl.duration_days}d</div>
+                          <Btn onClick={() => buy(pl.code)} loading={busyPlan === pl.code} disabled={isCurrent} style={{ width: '100%', marginTop: 8, padding: '5px 8px', fontSize: 11 }}>
                             {isCurrent ? '✓ Current' : 'Subscribe'}
                           </Btn>
                         </div>
                       );
                     })}
                   </div>
-                </AccordionSection>
+                </AccordionRow>
 
                 {/* Payment History */}
-                <AccordionSection
+                <AccordionRow
                   icon="📜"
                   title="Payment History"
                   summary={`${payments.length} transaction${payments.length === 1 ? '' : 's'}`}
                 >
                   {payments.length === 0 ? (
-                    <div style={{ color: C.faint, fontSize: 13, padding: '8px 0' }}>No payments yet.</div>
+                    <div style={{ color: C.faint, fontSize: 12, padding: '4px 0' }}>No payments yet.</div>
                   ) : (
-                    <div style={{ background: C.bg, borderRadius: 12, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
+                    <div style={{ background: C.bg, borderRadius: 10, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
                       <div className="tbl-wrap">
                         <table>
-                          <thead><tr><th>Date</th><th>Plan</th><th>Amount</th><th>Status</th></tr></thead>
+                          <thead><tr><th style={{ fontSize: 11 }}>Date</th><th style={{ fontSize: 11 }}>Plan</th><th style={{ fontSize: 11 }}>Amount</th><th style={{ fontSize: 11 }}>Status</th></tr></thead>
                           <tbody>
                             {payments.map(pmt => (
                               <tr key={pmt.id}>
-                                <td style={{ whiteSpace: 'nowrap', fontSize: 12 }}>{(pmt.paid_at || pmt.created_at || '').slice(0,10)}</td>
-                                <td style={{ fontSize: 12 }}>{pmt.plan_code}</td>
-                                <td style={{ fontSize: 12, fontWeight: 700 }}>₹{Number(pmt.amount_inr).toLocaleString('en-IN')}</td>
+                                <td style={{ whiteSpace: 'nowrap', fontSize: 11 }}>{(pmt.paid_at || pmt.created_at || '').slice(0,10)}</td>
+                                <td style={{ fontSize: 11 }}>{pmt.plan_code}</td>
+                                <td style={{ fontSize: 11, fontWeight: 700 }}>₹{Number(pmt.amount_inr).toLocaleString('en-IN')}</td>
                                 <td>
-                                  <span style={{ padding:'2px 7px', borderRadius:12, fontSize:10, fontWeight:700,
+                                  <span style={{ padding:'1px 6px', borderRadius:10, fontSize:9.5, fontWeight:700,
                                     background: pmt.status === 'success' ? C.successLight : C.errorLight,
                                     color: pmt.status === 'success' ? C.success : C.error }}>
                                     {pmt.status.toUpperCase()}
@@ -1707,64 +1695,69 @@
                       </div>
                     </div>
                   )}
-                </AccordionSection>
+                </AccordionRow>
 
                 {/* Branches */}
-                <AccordionSection
+                <AccordionRow
                   icon="🏢"
                   title="Branches"
                   summary={branches.length === 0 ? 'No branches yet' : `${branches.length} branch${branches.length === 1 ? '' : 'es'}`}
                   action={!addingBranch && (
-                    <Btn variant="secondary" onClick={() => setAddingBranch(true)} style={{ padding: '6px 14px', fontSize: 12.5 }}>+ Add Branch</Btn>
+                    <Btn variant="secondary" onClick={() => setAddingBranch(true)} style={{ padding: '4px 10px', fontSize: 11.5 }}>+ Add</Btn>
                   )}
+                  last
                 >
                   {branches.length === 0 && !addingBranch && (
-                    <div style={{ fontSize: 13, color: C.faint, padding: '6px 0 12px' }}>
-                      Add your first branch to start scoping cases by location.
+                    <div style={{ fontSize: 12, color: C.faint, padding: '4px 0 8px' }}>
+                      Add your first branch to scope cases by location.
                     </div>
                   )}
                   {branches.map(b => (
                     <div key={b.id} style={{
                       display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                      padding: '10px 0', borderBottom: `1px solid ${C.border}`,
+                      padding: '7px 0', borderBottom: `1px solid ${C.border}`,
                     }}>
                       <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ fontSize: 13.5, fontWeight: 700, color: C.text }}>
+                        <div style={{ fontSize: 12.5, fontWeight: 700, color: C.text }}>
                           {b.name}
                           {b.is_default && (
                             <span style={{
-                              fontSize: 9.5, color: C.success, marginLeft: 8,
-                              background: C.successLight, padding: '2px 7px', borderRadius: 10,
+                              fontSize: 9, color: C.success, marginLeft: 6,
+                              background: C.successLight, padding: '1px 6px', borderRadius: 8,
                               fontWeight: 800, letterSpacing: '0.04em',
                             }}>DEFAULT</span>
                           )}
                         </div>
-                        {b.address && <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{b.address}</div>}
+                        {b.address && <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>{b.address}</div>}
                       </div>
                       <button onClick={() => deleteBranch(b.id)} style={{
                         background: 'none', border: 'none', color: C.error,
-                        cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                        cursor: 'pointer', fontSize: 11, fontWeight: 700,
                       }}>Remove</button>
                     </div>
                   ))}
                   {addingBranch && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '10px 0' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '6px 0' }}>
                       <Input label="Branch Name" value={newBranch.name} onChange={e => setNewBranch(b => ({ ...b, name: e.target.value }))} />
                       <Input label="Address (optional)" value={newBranch.address} onChange={e => setNewBranch(b => ({ ...b, address: e.target.value }))} />
                       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                        <Btn variant="ghost" onClick={() => setAddingBranch(false)}>Cancel</Btn>
-                        <Btn onClick={addBranch}>Save</Btn>
+                        <Btn variant="ghost" onClick={() => setAddingBranch(false)} style={{ padding: '5px 10px', fontSize: 11.5 }}>Cancel</Btn>
+                        <Btn onClick={addBranch} style={{ padding: '5px 10px', fontSize: 11.5 }}>Save</Btn>
                       </div>
                     </div>
                   )}
-                </AccordionSection>
-              </>
+                </AccordionRow>
+              </div>
             )}
           </div>
 
-          {/* ── Logout footer ── */}
-          <div style={{ borderTop: `1px solid ${C.border}`, padding: '14px 16px', flexShrink: 0, background: C.card }}>
-            <Btn variant="danger" onClick={onLogout} style={{ width: '100%', padding: '11px', fontSize: 14, fontWeight: 700 }}>🚪 Logout</Btn>
+          {/* ── Logout footer (compact ghost) ── */}
+          <div style={{ borderTop: `1px solid ${C.border}`, padding: '8px 14px', flexShrink: 0, background: C.card }}>
+            <button onClick={onLogout} style={{
+              width: '100%', background: 'transparent', border: `1px solid ${C.error}40`,
+              color: C.error, borderRadius: 9, padding: '8px', cursor: 'pointer',
+              fontSize: 12.5, fontWeight: 700, letterSpacing: '0.02em',
+            }}>Logout</button>
           </div>
         </div>
       </div>

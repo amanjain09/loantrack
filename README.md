@@ -540,4 +540,6 @@ If you're a Claude session picking this up, here's what's important:
 
 | 2026-06 | footer-everywhere + remove-gold | (a) Added a shared `<Footer />` component shown on every authenticated page: HomePage, AddCasePage, ViewCasesPage, DashboardPage (incl. loading/error states), AdminConsole. Same copyright row format as the landing page. Each page wrapped in a flex column so the footer pins to the viewport bottom. (b) Removed the gold-price feature entirely — `GoldRateBar`, `GoldRateProvider`, `useGoldRate` hook + Add-Case "Suggested loan @ 75% LTV" helper + Dashboard gold ticker all gone from the frontend. Backend `GET /api/gold-rate`, `fetch_gold_rate()`, `_GOLD_CACHE`/`_GOLD_FALLBACK`/`_USD_INR` constants, and the `urllib.request` import all removed. |
 
-_Last updated: 2026-06-01 — commit `footer-everywhere`_
+| 2026-06 | profile-compact | Re-redesigned ProfilePanel as a Groww-style compact list. Slim header (40 px avatar + name + customer-id + close button), thin contact strip (phone + mini sub-chip), single-card body with hairline-divided list rows instead of separate cards, smaller icons (30 px), tighter typography (13.5 / 11.5 px), padding cut roughly in half across the board. Logout is now a ghost outline button instead of a full red bar. Panel width reduced from 460 → 380 px. |
+
+_Last updated: 2026-06-01 — commit `profile-compact`_
