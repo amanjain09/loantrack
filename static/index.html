@@ -220,8 +220,15 @@
   }
 
   // ── Language system ────────────────────────────────────────────────────────
+  // i18n removed for MVP. useLang is a stub returning English; all existing
+  // t('key') calls keep working by looking up the English entry in TR.
+  // Re-introduce LangCtx + selector later when ready to ship full translations.
   const LangCtx = createContext(null);
-  const useLang = () => useContext(LangCtx);
+  const useLang = () => ({
+    lang: 'en',
+    setLang: () => {},
+    t: key => (TR[key]?.en ?? key),
+  });
 
   const LANGS = {
     en:'English', hi:'हिंदी', bn:'বাংলা', mr:'मराठी', te:'తెలుగు',
@@ -363,27 +370,7 @@
   const WHITE_ARROW = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' d='M6 8L1 3h10z'/%3E%3C/svg%3E")`;
 
   function LangSelector() {
-    const { lang, setLang } = useLang();
-    return (
-      <select
-        value={lang}
-        onChange={e => setLang(e.target.value)}
-        style={{
-          background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.3)',
-          color: '#fff', borderRadius: 8, padding: '5px 28px 5px 10px', fontSize: 12.5,
-          cursor: 'pointer', outline: 'none', fontWeight: 600, maxWidth: 120,
-          backgroundImage: WHITE_ARROW,
-          backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center',
-          appearance: 'none', WebkitAppearance: 'none',
-        }}
-      >
-        {Object.entries(LANGS).map(([code, name]) => (
-          <option key={code} value={code} style={{ background: '#1e293b', color: '#fff', fontWeight: 600 }}>
-            {name}
-          </option>
-        ))}
-      </select>
-    );
+    return null;   // disabled for MVP
   }
 
   // ── Global helpers ─────────────────────────────────────────────────────────
@@ -858,15 +845,6 @@
                   boxShadow: '0 20px 50px rgba(0,0,0,0.4)', padding: '8px 8px', zIndex: 250,
                 }}>
                   <div style={{ padding: '8px 10px', fontSize: 11, fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('preferences')}</div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', gap: 10 }}>
-                    <span style={{ fontSize: 13, color: C.text }}>{t('language')}</span>
-                    <select value={lang} onChange={e => setLang(e.target.value)} style={{
-                      background: C.inputBg, color: C.text, border: `1px solid ${C.border}`, borderRadius: 7,
-                      padding: '5px 9px', fontSize: 12.5, fontWeight: 600,
-                    }}>
-                      {Object.entries(LANGS).map(([code, name]) => <option key={code} value={code}>{name}</option>)}
-                    </select>
-                  </div>
                   <button onClick={toggle} style={{
                     width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     background: 'transparent', border: 'none', cursor: 'pointer',
@@ -893,7 +871,6 @@
           {/* No user yet (legacy): keep old controls just in case */}
           {!isTenant && !isStaff && (
             <>
-              <LangSelector />
               <button onClick={toggle} title={dark ? 'Switch to Light Mode' : 'Switch to Dark Mode'} style={{
                 background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.2)',
                 color: '#fff', borderRadius: 8, padding: '5px 12px', cursor: 'pointer',
@@ -1752,15 +1729,6 @@
                 <SecHead>{t('preferences')}</SecHead>
                 <div style={{ background: C.card, borderRadius: 12, border: `1px solid ${C.border}`, padding: '8px 14px', marginBottom: 18 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0' }}>
-                    <span style={{ fontSize: 13, color: C.text, fontWeight: 600 }}>{t('language')}</span>
-                    <select value={lang} onChange={e => setLang(e.target.value)} style={{
-                      background: C.inputBg, color: C.text, border: `1px solid ${C.border}`, borderRadius: 8,
-                      padding: '6px 28px 6px 10px', fontSize: 12.5, fontWeight: 600, minWidth: 140,
-                    }}>
-                      {Object.entries(LANGS).map(([code, name]) => <option key={code} value={code}>{name}</option>)}
-                    </select>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderTop: `1px solid ${C.border}` }}>
                     <span style={{ fontSize: 13, color: C.text, fontWeight: 600 }}>{t('theme')}</span>
                     <button onClick={toggle} style={{
                       background: C.primaryLight, color: C.primary, border: `1px solid ${C.primary}40`,
@@ -2389,15 +2357,6 @@
                 boxShadow: '0 20px 50px rgba(0,0,0,0.4)', padding: 8, zIndex: 250,
               }}>
                 <div style={{ padding: '8px 10px', fontSize: 11, fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Preferences</div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', gap: 10 }}>
-                  <span style={{ fontSize: 13, color: C.text }}>Language</span>
-                  <select value={lang} onChange={e => setLang(e.target.value)} style={{
-                    background: C.inputBg, color: C.text, border: `1px solid ${C.border}`, borderRadius: 7,
-                    padding: '5px 9px', fontSize: 12.5, fontWeight: 600,
-                  }}>
-                    {Object.entries(LANGS).map(([code, name]) => <option key={code} value={code}>{name}</option>)}
-                  </select>
-                </div>
                 <button onClick={toggle} style={{
                   width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   background: 'transparent', border: 'none', cursor: 'pointer',
@@ -3932,16 +3891,6 @@
     const [me, setMe]     = useState(null);     // { authenticated, user, subscription }
     const [page, setPage] = useState('home');
 
-    // Persist language in localStorage
-    const [lang, setLangState] = useState(() => {
-      try { return localStorage.getItem('loantrack-lang') || 'en'; } catch { return 'en'; }
-    });
-    const setLang = code => {
-      setLangState(code);
-      try { localStorage.setItem('loantrack-lang', code); } catch {}
-    };
-    const t = key => tKey(key, lang);
-
     // Persist theme in localStorage
     const [dark, setDark] = useState(() => {
       try { return localStorage.getItem('loantrack-theme') === 'dark'; } catch { return false; }
@@ -3994,7 +3943,6 @@
     const openProfile = () => setProfileOpen(true);
 
     return (
-      <LangCtx.Provider value={{ lang, setLang, t }}>
       <ThemeCtx.Provider value={{ C, dark, toggle }}>
       <GoldRateProvider>
         {!auth && <LandingPage onLogin={refreshMe} />}
@@ -4021,7 +3969,6 @@
         )}
       </GoldRateProvider>
       </ThemeCtx.Provider>
-      </LangCtx.Provider>
     );
   }
 
