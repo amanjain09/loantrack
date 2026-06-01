@@ -237,6 +237,20 @@ def audit(action, target_type=None, target_id=None, meta=None, actor_id=None):
         print(f"[audit] failed: {e}", flush=True)
 
 
+def record_case_history(case_id, action, changes=None, actor_id=None):
+    """Append a per-case history entry. `changes` is the diff dict or None."""
+    actor = actor_id if actor_id is not None else session.get("user_id")
+    try:
+        conn = get_db()
+        db_execute(conn,
+            "INSERT INTO case_history (case_id, actor_id, action, changes) VALUES (?, ?, ?, ?)",
+            (case_id, actor, action, json.dumps(changes) if changes else None))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[case_history] failed: {e}", flush=True)
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Lean column list for case list endpoint (excludes base64 blobs)
 # ──────────────────────────────────────────────────────────────────────────────
@@ -398,6 +412,27 @@ CREATE TABLE IF NOT EXISTS audit_log (
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )
 """
+
+CASE_HISTORY_DDL_PG = """
+CREATE TABLE IF NOT EXISTS case_history (
+    id         SERIAL PRIMARY KEY,
+    case_id    INTEGER NOT NULL,
+    actor_id   INTEGER,
+    action     TEXT NOT NULL,
+    changes    TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+"""
+CASE_HISTORY_DDL_SQ = """
+CREATE TABLE IF NOT EXISTS case_history (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    case_id    INTEGER NOT NULL,
+    actor_id   INTEGER,
+    action     TEXT NOT NULL,
+    changes    TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+"""
 AUDIT_DDL_SQ = """
 CREATE TABLE IF NOT EXISTS audit_log (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -409,6 +444,8 @@ CREATE TABLE IF NOT EXISTS audit_log (
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )
 """
+
+# (CASE_HISTORY_DDL_SQ defined above)
 
 
 def init_db():
@@ -479,6 +516,7 @@ def init_db():
         cur.execute(PAYMENTS_DDL_PG)
         cur.execute(OTP_DDL_PG)
         cur.execute(AUDIT_DDL_PG)
+        cur.execute(CASE_HISTORY_DDL_PG)
 
         cur.execute("UPDATE cases SET status = 'open' WHERE status IS NULL")
         conn.commit()
@@ -537,6 +575,7 @@ def init_db():
         conn.execute(PAYMENTS_DDL_SQ)
         conn.execute(OTP_DDL_SQ)
         conn.execute(AUDIT_DDL_SQ)
+        conn.execute(CASE_HISTORY_DDL_SQ)
         conn.execute("UPDATE cases SET status = 'open' WHERE status IS NULL")
         conn.commit()
     conn.close()
@@ -918,6 +957,7 @@ def add_case(_user):
     conn.commit()
     conn.close()
     audit("case_create", "case", case_id, {"name": data.get("name")})
+    record_case_history(case_id, "created", {"name": data.get("name")})
     return jsonify({"success": True, "id": case_id}), 201
 
 
@@ -1008,6 +1048,7 @@ def close_case(_user, case_id):
     conn.commit()
     conn.close()
     audit("case_close", "case", case_id, {"amount": amount_received})
+    record_case_history(case_id, "closed", {"amount_received": amount_received, "closed_at": closed_at})
     return jsonify({"success": True})
 
 
@@ -1032,7 +1073,122 @@ def mark_bad_debt(_user, case_id):
     conn.commit()
     conn.close()
     audit("case_bad_debt", "case", case_id)
+    record_case_history(case_id, "marked_bad_debt", None)
     return jsonify({"success": True})
+
+
+# ── Editable fields for PATCH (excludes status/closed_at/amount_received and media) ──
+_EDITABLE_FIELDS = (
+    "name", "father_name", "address", "mobile",
+    "items", "weight", "metal",
+    "money_lent", "interest_rate",
+    "loan_date", "loan_time", "notes",
+    "probable_close_date", "hard_deadline",
+)
+
+
+@app.route("/api/cases/<int:case_id>", methods=["PATCH"])
+@require_auth(roles=["user", "admin"])
+@require_active_subscription
+def edit_case(_user, case_id):
+    """Edit a case. Diffs each field, writes a history entry with the diff."""
+    data = request.get_json() or {}
+    conn = get_db()
+    cur  = db_execute(conn, "SELECT * FROM cases WHERE id = ?", (case_id,))
+    row  = cur.fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"error": "Case not found"}), 404
+    row = dict(row)
+    if _user["role"] == "user" and row.get("user_id") != _user["id"]:
+        conn.close()
+        return jsonify({"error": "Forbidden"}), 403
+
+    fields, params, changes = [], [], {}
+    for k in _EDITABLE_FIELDS:
+        if k not in data:
+            continue
+        new_v = data.get(k)
+        if isinstance(new_v, str):
+            new_v = new_v.strip() or None
+        if new_v == "":
+            new_v = None
+        old_v = row.get(k)
+        # Normalise numeric strings vs floats for comparison
+        try:
+            if old_v is not None and new_v is not None and k in ("weight", "money_lent", "interest_rate"):
+                if float(old_v) == float(new_v):
+                    continue
+        except Exception:
+            pass
+        if (old_v or None) == (new_v or None):
+            continue
+        fields.append(f"{k} = ?")
+        params.append(new_v)
+        changes[k] = {"old": old_v, "new": new_v}
+
+    if not fields:
+        conn.close()
+        return jsonify({"success": True, "changed": False, "message": "No changes detected"})
+
+    params.append(case_id)
+    db_execute(conn, f"UPDATE cases SET {', '.join(fields)} WHERE id = ?", params)
+    conn.commit()
+    conn.close()
+    audit("case_edit", "case", case_id, {"fields": list(changes.keys())})
+    record_case_history(case_id, "updated", changes)
+    return jsonify({"success": True, "changed": True, "changes": changes})
+
+
+@app.route("/api/cases/<int:case_id>", methods=["DELETE"])
+@require_auth(roles=["user", "admin"])
+@require_active_subscription
+def delete_case(_user, case_id):
+    """Hard delete a case. Audit log retains the action; case_history is removed."""
+    conn = get_db()
+    cur  = db_execute(conn, "SELECT user_id, name FROM cases WHERE id = ?", (case_id,))
+    row  = cur.fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"error": "Case not found"}), 404
+    row = dict(row)
+    if _user["role"] == "user" and row.get("user_id") != _user["id"]:
+        conn.close()
+        return jsonify({"error": "Forbidden"}), 403
+
+    # Delete the per-case history and the case itself.
+    db_execute(conn, "DELETE FROM case_history WHERE case_id = ?", (case_id,))
+    db_execute(conn, "DELETE FROM cases WHERE id = ?", (case_id,))
+    conn.commit()
+    conn.close()
+    audit("case_delete", "case", case_id, {"name": row.get("name")})
+    return jsonify({"success": True})
+
+
+@app.route("/api/cases/<int:case_id>/history", methods=["GET"])
+@require_auth(roles=["user", "admin"])
+@require_active_subscription
+def case_history(_user, case_id):
+    """Return chronological history for a case (newest first)."""
+    conn = get_db()
+    cur  = db_execute(conn, "SELECT user_id FROM cases WHERE id = ?", (case_id,))
+    row  = cur.fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"error": "Case not found"}), 404
+    row = dict(row)
+    if _user["role"] == "user" and row.get("user_id") != _user["id"]:
+        conn.close()
+        return jsonify({"error": "Forbidden"}), 403
+
+    cur = db_execute(conn,
+        "SELECT h.id, h.case_id, h.actor_id, h.action, h.changes, h.created_at, u.name AS actor_name "
+        "FROM case_history h LEFT JOIN users u ON u.id = h.actor_id "
+        "WHERE h.case_id = ? ORDER BY h.id DESC",
+        (case_id,))
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return jsonify(rows)
 
 
 # ──────────────────────────────────────────────────────────────────────────────

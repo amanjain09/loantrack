@@ -211,6 +211,7 @@ The platform has **two roles**:
 | `otp_codes` | Issued OTPs (signup / login) | `phone, code, purpose, expires_at, used` |
 | `leads` | Landing-page "request access" submissions | `name, email, phone, company, message, created_at` |
 | `audit_log` | Append-only event log | `actor_id, action, target_type, target_id, meta (JSON), created_at` |
+| `case_history` | Per-case change log (created / updated / closed / marked_bad_debt) | `case_id, actor_id, action, changes (JSON diff), created_at` |
 
 Existing legacy cases (from before multi-tenancy) are auto-migrated to a
 **founding lender** account on `init_db()` so the live ledger is never
@@ -230,6 +231,9 @@ lost.
 
 ### Tenant (role: user)
 - `GET/POST /api/cases` · `GET /api/cases/<id>`
+- `PATCH /api/cases/<id>` — edit case (diff captured to `case_history`)
+- `DELETE /api/cases/<id>` — permanent delete (audit retained)
+- `GET /api/cases/<id>/history` — chronological per-case history
 - `POST /api/cases/<id>/close` · `POST /api/cases/<id>/bad-debt`
 - `GET /api/dashboard`
 - `GET /api/billing/me` · `POST /api/billing/create-order` · `POST /api/billing/verify`
@@ -418,6 +422,7 @@ commit going forward will append a row here.
 | 2026-05 | logo-flat | Removed radial-fade mask; render as plain `<img>` |
 | 2026-06 | logo-rounded | Rounded corners (~22% radius, size-proportional) |
 | 2026-06 | readme-init | **This** README with full project history |
+| 2026-06 | case-edit-history-delete | Case edit + per-case history table + collapsible View History accordion + delete with permanent-deletion warning. New `case_history` table, `PATCH /api/cases/<id>`, `DELETE /api/cases/<id>`, `GET /api/cases/<id>/history`. |
 
 ---
 
@@ -439,9 +444,9 @@ Tracked as separate user requests; expected to span several sessions.
 
 - [x] Rounded logo corners
 - [x] README & history tracking
+- [x] Edit case + audit history + delete with confirmation
 - [ ] Full i18n coverage (every visible string × 16 languages)
 - [ ] Profile menu (KYC + billing inside, logout at bottom)
-- [ ] Edit case + audit history + delete with confirmation
 - [ ] Move language + theme controls into the profile menu
 - [ ] 1 Cr scaling architecture doc
 - [ ] Live gold rate widget
@@ -495,4 +500,4 @@ If you're a Claude session picking this up, here's what's important:
 
 ---
 
-_Last updated: 2026-06-01 — commit `readme-init`_
+_Last updated: 2026-06-01 — commit `case-edit-history-delete`_
