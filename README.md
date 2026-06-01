@@ -203,7 +203,7 @@ The platform has **two roles**:
 
 | Table | Purpose | Key columns |
 |---|---|---|
-| `users` | All accounts (admin + tenants) | `id, name, phone, username, email, password_hash, role, status` |
+| `users` | All accounts (admin + tenants) | `id, name, phone, username, email, password_hash, role, status, aadhaar, pan, dob, address, business_name, kyc_status` |
 | `cases` | The core loan ledger, **tenant-scoped** | `id, user_id (FK), name, father_name, address, mobile, items, weight, metal, money_lent, interest_rate, loan_date, loan_time, notes, status (open/closed/bad_debt), closed_at, amount_received, probable_close_date, hard_deadline, address_proof, lending_video, closing_video, created_at` |
 | `plans` | Billing plans | `code, name, price_inr, duration_days, is_trial, active` |
 | `subscriptions` | Tenant subscription history | `user_id, plan_code, status, started_at, expires_at` |
@@ -236,6 +236,8 @@ lost.
 - `GET /api/cases/<id>/history` — chronological per-case history
 - `POST /api/cases/<id>/close` · `POST /api/cases/<id>/bad-debt`
 - `GET /api/dashboard`
+- `GET /api/users/me/profile` — own profile + subscription + payments
+- `PATCH /api/users/me` — edit own profile / KYC (name, email, address, business_name, aadhaar, pan, dob)
 - `GET /api/billing/me` · `POST /api/billing/create-order` · `POST /api/billing/verify`
 
 ### Admin
@@ -423,6 +425,7 @@ commit going forward will append a row here.
 | 2026-06 | logo-rounded | Rounded corners (~22% radius, size-proportional) |
 | 2026-06 | readme-init | **This** README with full project history |
 | 2026-06 | case-edit-history-delete | Case edit + per-case history table + collapsible View History accordion + delete with permanent-deletion warning. New `case_history` table, `PATCH /api/cases/<id>`, `DELETE /api/cases/<id>`, `GET /api/cases/<id>/history`. |
+| 2026-06 | profile-menu | Replaced Logout button with avatar/profile menu. Tenants get a full slide-out ProfilePanel (profile + KYC + billing + payment history + preferences + logout). Admins get a clean dropdown (preferences + logout). Landing page settings dropdown for lang + theme. Date strip + Billing card removed from HomePage. New KYC columns on users, `GET /api/users/me/profile`, `PATCH /api/users/me`, Customer ID format `PV-NNNNNN`. |
 
 ---
 
@@ -445,8 +448,9 @@ Tracked as separate user requests; expected to span several sessions.
 - [x] Rounded logo corners
 - [x] README & history tracking
 - [x] Edit case + audit history + delete with confirmation
+- [x] Profile menu (KYC + billing inside, logout at bottom)
+- [x] Language + theme moved into profile / settings menus
 - [ ] Full i18n coverage (every visible string × 16 languages)
-- [ ] Profile menu (KYC + billing inside, logout at bottom)
 - [ ] Move language + theme controls into the profile menu
 - [ ] 1 Cr scaling architecture doc
 - [ ] Live gold rate widget
@@ -500,4 +504,4 @@ If you're a Claude session picking this up, here's what's important:
 
 ---
 
-_Last updated: 2026-06-01 — commit `case-edit-history-delete`_
+_Last updated: 2026-06-01 — commit `profile-menu`_

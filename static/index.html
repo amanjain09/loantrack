@@ -614,9 +614,37 @@
     );
   }
 
-  function Navbar({ title, onBack, onLogout }) {
+  // ── Avatar circle from user's initials ────────────────────────────────────
+  function Avatar({ name, size = 36, bg, color }) {
+    const initials = (name || '?').trim().split(/\s+/).map(s => s[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
+    return (
+      <div style={{
+        width: size, height: size, borderRadius: '50%', flexShrink: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontWeight: 800, fontSize: Math.round(size * 0.38), letterSpacing: '0.02em',
+        background: bg || 'rgba(255,255,255,0.18)', color: color || '#fff',
+        border: '1px solid rgba(255,255,255,0.22)',
+      }}>{initials || '👤'}</div>
+    );
+  }
+
+  function Navbar({ title, onBack, onLogout, user, onProfile }) {
     const { C, dark, toggle } = useTheme();
-    const { lang, t } = useLang();
+    const { lang, setLang, t } = useLang();
+    const [menu, setMenu] = useState(false);                  // small admin-style menu
+    const menuRef = useRef(null);
+
+    // Close dropdown on outside click
+    useEffect(() => {
+      if (!menu) return;
+      const off = e => { if (menuRef.current && !menuRef.current.contains(e.target)) setMenu(false); };
+      document.addEventListener('mousedown', off);
+      return () => document.removeEventListener('mousedown', off);
+    }, [menu]);
+
+    const isTenant = user?.role === 'user';
+    const isStaff  = user?.role === 'admin';
+
     return (
       <div style={{
         background: C.navBg, color: '#fff', height: 56, padding: '0 20px',
@@ -634,26 +662,98 @@
           <Logo size={36} />
           <span style={{ fontWeight: 800, fontSize: 16.5, letterSpacing: '-0.01em' }}>{title}</span>
         </div>
+
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {/* 🌐 Language */}
-          <LangSelector />
-          {/* 🌙 Dark / Light toggle */}
-          <button
-            onClick={toggle}
-            title={dark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-            style={{
-              background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.2)',
-              color: '#fff', borderRadius: 8, padding: '5px 12px', cursor: 'pointer',
-              fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
-            }}>
-            {dark ? '☀️ Light' : '🌙 Dark'}
-          </button>
-          {onLogout && (
-            <button onClick={onLogout} style={{
-              background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)',
-              color: '#fff', borderRadius: 7, padding: '6px 14px', cursor: 'pointer',
-              fontSize: 13, fontWeight: 600,
-            }}>{t('logout')}</button>
+          {/* Tenant: avatar button → opens full profile panel */}
+          {isTenant && onProfile && (
+            <button
+              onClick={onProfile}
+              title="My Profile"
+              style={{
+                background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.22)',
+                color: '#fff', borderRadius: 999, padding: '4px 12px 4px 4px', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 8,
+              }}
+            >
+              <Avatar name={user?.name} size={28} bg="rgba(255,255,255,0.25)" />
+              <span style={{ fontSize: 13, fontWeight: 700 }}>{(user?.name || '').split(' ')[0] || 'Profile'}</span>
+            </button>
+          )}
+
+          {/* Staff: small dropdown menu (lang + theme + logout) */}
+          {isStaff && (
+            <div style={{ position: 'relative' }} ref={menuRef}>
+              <button
+                onClick={() => setMenu(m => !m)}
+                title="Account"
+                style={{
+                  background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.22)',
+                  color: '#fff', borderRadius: 999, padding: '4px 12px 4px 4px', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 8,
+                }}
+              >
+                <Avatar name={user?.name} size={28} bg="rgba(255,255,255,0.25)" />
+                <span style={{ fontSize: 13, fontWeight: 700 }}>{(user?.name || '').split(' ')[0] || 'Account'}</span>
+                <span style={{ fontSize: 10, opacity: 0.8 }}>▾</span>
+              </button>
+              {menu && (
+                <div style={{
+                  position: 'absolute', top: 'calc(100% + 8px)', right: 0, minWidth: 240,
+                  background: C.card, color: C.text, borderRadius: 12, border: `1px solid ${C.border}`,
+                  boxShadow: '0 20px 50px rgba(0,0,0,0.4)', padding: '8px 8px', zIndex: 250,
+                }}>
+                  <div style={{ padding: '8px 10px', fontSize: 11, fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Preferences</div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', gap: 10 }}>
+                    <span style={{ fontSize: 13, color: C.text }}>Language</span>
+                    <select value={lang} onChange={e => setLang(e.target.value)} style={{
+                      background: C.inputBg, color: C.text, border: `1px solid ${C.border}`, borderRadius: 7,
+                      padding: '5px 9px', fontSize: 12.5, fontWeight: 600,
+                    }}>
+                      {Object.entries(LANGS).map(([code, name]) => <option key={code} value={code}>{name}</option>)}
+                    </select>
+                  </div>
+                  <button onClick={toggle} style={{
+                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    background: 'transparent', border: 'none', cursor: 'pointer',
+                    padding: '8px 10px', color: C.text, fontSize: 13, fontWeight: 600,
+                  }}>
+                    <span>{dark ? '☀️ Light Mode' : '🌙 Dark Mode'}</span>
+                    <span style={{ fontSize: 11, color: C.muted }}>{dark ? 'on' : 'off'}</span>
+                  </button>
+                  {onLogout && (
+                    <>
+                      <div style={{ height: 1, background: C.border, margin: '6px 4px' }} />
+                      <button onClick={() => { setMenu(false); onLogout(); }} style={{
+                        width: '100%', textAlign: 'left',
+                        background: 'transparent', border: 'none', cursor: 'pointer',
+                        padding: '9px 10px', color: C.error, fontSize: 13, fontWeight: 700,
+                      }}>🚪 {t('logout') || 'Logout'}</button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* No user yet (legacy): keep old controls just in case */}
+          {!isTenant && !isStaff && (
+            <>
+              <LangSelector />
+              <button onClick={toggle} title={dark ? 'Switch to Light Mode' : 'Switch to Dark Mode'} style={{
+                background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.2)',
+                color: '#fff', borderRadius: 8, padding: '5px 12px', cursor: 'pointer',
+                fontSize: 13, fontWeight: 600,
+              }}>
+                {dark ? '☀️ Light' : '🌙 Dark'}
+              </button>
+              {onLogout && (
+                <button onClick={onLogout} style={{
+                  background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)',
+                  color: '#fff', borderRadius: 7, padding: '6px 14px', cursor: 'pointer',
+                  fontSize: 13, fontWeight: 600,
+                }}>{t('logout')}</button>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -1141,6 +1241,305 @@
   }
 
   // ──────────────────────────────────────────────────────────────────────────
+  // Tenant Profile Panel — slides in from the right, contains:
+  //   • Header (avatar, name, customer-id, phone)
+  //   • Profile details (editable: name, email, address, business name)
+  //   • KYC details (editable: aadhaar, pan, dob)
+  //   • Subscription & billing (current plan + plans grid + history)
+  //   • Preferences (language, theme)
+  //   • Logout at the very bottom
+  // ──────────────────────────────────────────────────────────────────────────
+  function ProfilePanel({ user, onClose, onLogout, refreshMe }) {
+    const { C, dark, toggle } = useTheme();
+    const { lang, setLang, t } = useLang();
+    const [data, setData]       = useState(null);
+    const [plans, setPlans]     = useState([]);
+    const [editing, setEditing] = useState(false);
+    const [form, setForm]       = useState({});
+    const [savingForm, setSF]   = useState(false);
+    const [editErr, setEditErr] = useState('');
+    const [busyPlan, setBP]     = useState('');
+    const [billErr, setBillErr] = useState('');
+    const [billOK, setBillOK]   = useState('');
+
+    const load = useCallback(async () => {
+      try {
+        const [d, p] = await Promise.all([
+          api.get('/api/users/me/profile'),
+          api.get('/api/billing/plans'),
+        ]);
+        setData(d); setPlans(p.filter(x => !x.is_trial));
+      } catch (e) { /* swallow */ }
+    }, []);
+    useEffect(() => { load(); }, [load]);
+
+    useEffect(() => {
+      const onEsc = e => { if (e.key === 'Escape') onClose(); };
+      document.addEventListener('keydown', onEsc);
+      return () => document.removeEventListener('keydown', onEsc);
+    }, [onClose]);
+
+    const startEdit = () => {
+      const p = data?.profile || {};
+      setForm({
+        name: p.name || '', email: p.email || '', address: p.address || '',
+        business_name: p.business_name || '', aadhaar: p.aadhaar || '',
+        pan: p.pan || '', dob: p.dob || '',
+      });
+      setEditing(true); setEditErr('');
+    };
+    const ef = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
+    const doSave = async () => {
+      setSF(true); setEditErr('');
+      try {
+        await api.req('/api/users/me', { method: 'PATCH', body: JSON.stringify(form) });
+        await load(); refreshMe?.();
+        setEditing(false);
+      } catch (e) { setEditErr(e.message || 'Could not save.'); }
+      finally { setSF(false); }
+    };
+
+    const buy = async (planCode) => {
+      setBP(planCode); setBillErr(''); setBillOK('');
+      try {
+        const order = await api.post('/api/billing/create-order', { plan_code: planCode });
+        const v = await api.post('/api/billing/verify', { provider_order_id: order.provider_order_id });
+        if (v.success) { setBillOK('Subscription activated!'); load(); refreshMe?.(); }
+      } catch (e) { setBillErr(e.message || 'Could not subscribe.'); }
+      finally { setBP(''); }
+    };
+
+    const p = data?.profile;
+    const sub = data?.subscription;
+    const payments = data?.payments || [];
+
+    const SecHead = ({ children, action }) => (
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        marginBottom: 12,
+      }}>
+        <div style={{ fontSize: 11, fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{children}</div>
+        {action}
+      </div>
+    );
+    const Row = ({ label, value }) => (
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+        gap: 12, padding: '7px 0', borderBottom: `1px solid ${C.border}`,
+      }}>
+        <span style={{ color: C.muted, fontSize: 12.5, flexShrink: 0 }}>{label}</span>
+        <span style={{ color: C.text, fontWeight: 600, fontSize: 13, textAlign: 'right', wordBreak: 'break-word' }}>{value || '—'}</span>
+      </div>
+    );
+    const maskAadhaar = (a) => a ? `xxxx-xxxx-${String(a).replace(/\D/g,'').slice(-4)}` : null;
+    const maskPan     = (p) => p ? `${String(p).slice(0,2)}xxxxx${String(p).slice(-1)}` : null;
+
+    return (
+      <div onClick={e => e.target === e.currentTarget && onClose()} style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 600,
+        backdropFilter: 'blur(3px)',
+      }}>
+        <div className="fade-in" style={{
+          position: 'absolute', top: 0, right: 0, width: 'min(440px, 100vw)', height: '100vh',
+          background: C.bg, borderLeft: `1px solid ${C.border}`,
+          boxShadow: '-30px 0 60px rgba(0,0,0,0.35)',
+          display: 'flex', flexDirection: 'column',
+        }}>
+          {/* Header */}
+          <div style={{
+            background: C.navBg, color: '#fff', padding: '18px 22px',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <Avatar name={p?.name || user?.name} size={50} bg="rgba(255,255,255,0.25)" />
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 800 }}>{p?.name || user?.name}</div>
+                {p?.customer_id && (
+                  <div style={{ fontSize: 12, opacity: 0.85, fontWeight: 600, marginTop: 2 }}>
+                    Customer ID: <span style={{ fontFamily: 'ui-monospace, monospace' }}>{p.customer_id}</span>
+                  </div>
+                )}
+                {p?.phone && <div style={{ fontSize: 12, opacity: 0.78, marginTop: 1 }}>+91 {p.phone}</div>}
+              </div>
+            </div>
+            <button onClick={onClose} style={{
+              background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.25)',
+              borderRadius: 8, width: 34, height: 34, color: '#fff', cursor: 'pointer', fontSize: 14,
+            }}>✕</button>
+          </div>
+
+          {/* Scroll body */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '22px 22px 12px' }}>
+
+            {!data ? <div style={{ color: C.faint, textAlign: 'center', padding: 30 }}>Loading…</div> : (
+              <>
+                {/* Profile Details (with edit) */}
+                <SecHead action={!editing && <Btn variant="secondary" onClick={startEdit} style={{ padding: '5px 12px', fontSize: 12 }}>✏️ Edit</Btn>}>Profile Details</SecHead>
+                {!editing && (
+                  <div style={{ background: C.card, borderRadius: 12, padding: '8px 16px', border: `1px solid ${C.border}`, marginBottom: 18 }}>
+                    <Row label="Name"          value={p?.name} />
+                    <Row label="Email"         value={p?.email} />
+                    <Row label="Phone"         value={p?.phone ? `+91 ${p.phone}  · verified ✓` : null} />
+                    <Row label="Business"      value={p?.business_name} />
+                    <Row label="Address"       value={p?.address} />
+                  </div>
+                )}
+                {editing && (
+                  <div style={{ background: C.card, borderRadius: 12, padding: '16px', border: `1px solid ${C.border}`, marginBottom: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <Input label="Name" required value={form.name} onChange={ef('name')} />
+                    <Input label="Email" type="email" value={form.email} onChange={ef('email')} />
+                    <Input label="Business / Firm" value={form.business_name} onChange={ef('business_name')} />
+                    <Textarea label="Address" rows={2} value={form.address} onChange={ef('address')} />
+                    <div style={{ height: 1, background: C.border, margin: '4px 0' }} />
+                    <div style={{ fontSize: 11, fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>KYC Details</div>
+                    <Input label="Aadhaar Number" value={form.aadhaar} onChange={ef('aadhaar')} placeholder="1234-5678-9012" />
+                    <Input label="PAN" value={form.pan} onChange={ef('pan')} placeholder="ABCDE1234F" />
+                    <Input label="Date of Birth" type="date" value={form.dob} onChange={ef('dob')} />
+                    {editErr && <Alert type="error">{editErr}</Alert>}
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                      <Btn variant="secondary" onClick={() => { setEditing(false); setEditErr(''); }}>Cancel</Btn>
+                      <Btn onClick={doSave} loading={savingForm}>Save</Btn>
+                    </div>
+                  </div>
+                )}
+
+                {/* KYC summary (read-only) */}
+                {!editing && (
+                  <>
+                    <SecHead>KYC Details</SecHead>
+                    <div style={{ background: C.card, borderRadius: 12, padding: '8px 16px', border: `1px solid ${C.border}`, marginBottom: 18 }}>
+                      <Row label="Aadhaar"  value={maskAadhaar(p?.aadhaar)} />
+                      <Row label="PAN"      value={maskPan(p?.pan)} />
+                      <Row label="DOB"      value={p?.dob} />
+                      <Row label="Status"   value={
+                        <span style={{
+                          padding: '2px 9px', borderRadius: 12, fontSize: 11, fontWeight: 700,
+                          background: (p?.kyc_status === 'verified') ? C.successLight : C.amberLight,
+                          color:      (p?.kyc_status === 'verified') ? C.success      : C.amber,
+                          textTransform: 'uppercase',
+                        }}>{p?.kyc_status || 'pending'}</span>
+                      } />
+                    </div>
+                  </>
+                )}
+
+                {/* Subscription & Billing */}
+                <SecHead>Subscription & Billing</SecHead>
+                <div style={{ background: C.card, borderRadius: 12, padding: '14px 16px', border: `1px solid ${C.border}`, marginBottom: 12 }}>
+                  {!sub ? <div style={{ color: C.faint, fontSize: 13 }}>No active subscription.</div> : (
+                    <>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <div style={{ fontSize: 18, fontWeight: 800, color: C.text }}>
+                            {String(sub.plan_code).replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                          </div>
+                          <div style={{ fontSize: 12, color: sub.active ? C.success : C.error, fontWeight: 600, marginTop: 2 }}>
+                            {sub.active ? `${sub.days_left} day${sub.days_left===1?'':'s'} remaining` : 'Expired'}
+                          </div>
+                          {sub.expires_at_iso && (
+                            <div style={{ fontSize: 11, color: C.faint, marginTop: 2 }}>
+                              Until {new Date(sub.expires_at_iso).toLocaleDateString('en-IN', { day:'numeric', month:'long', year:'numeric' })}
+                            </div>
+                          )}
+                        </div>
+                        <span style={{
+                          padding: '4px 10px', borderRadius: 14, fontSize: 11, fontWeight: 800,
+                          background: sub.active ? C.successLight : C.errorLight,
+                          color:      sub.active ? C.success      : C.error,
+                          textTransform: 'uppercase',
+                        }}>{sub.effective_status || sub.status}</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Plans grid */}
+                {billErr && <Alert type="error">{billErr}</Alert>}
+                {billOK  && <Alert type="success">{billOK}</Alert>}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 18 }}>
+                  {plans.map(pl => {
+                    const isCurrent = sub?.plan_code === pl.code && sub?.active;
+                    return (
+                      <div key={pl.code} style={{
+                        background: C.card, borderRadius: 12, padding: '12px 14px',
+                        border: `2px solid ${isCurrent ? C.success : C.border}`,
+                      }}>
+                        <div style={{ fontSize: 11, fontWeight: 800, color: C.muted, textTransform: 'uppercase' }}>{pl.name}</div>
+                        <div style={{ fontSize: 18, fontWeight: 800, color: C.text, marginTop: 4 }}>₹{Number(pl.price_inr).toLocaleString('en-IN')}</div>
+                        <div style={{ fontSize: 11, color: C.faint, marginTop: 2 }}>{pl.duration_days} days</div>
+                        <Btn onClick={() => buy(pl.code)} loading={busyPlan === pl.code} disabled={isCurrent} style={{ width: '100%', marginTop: 10, padding: '7px 10px', fontSize: 12 }}>
+                          {isCurrent ? '✓ Current' : 'Subscribe'}
+                        </Btn>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Payment history */}
+                {payments.length > 0 && (
+                  <>
+                    <SecHead>Payment History</SecHead>
+                    <div style={{ background: C.card, borderRadius: 12, border: `1px solid ${C.border}`, marginBottom: 18, overflow: 'hidden' }}>
+                      <div className="tbl-wrap">
+                        <table>
+                          <thead><tr><th>Date</th><th>Plan</th><th>Amount</th><th>Status</th></tr></thead>
+                          <tbody>
+                            {payments.map(pmt => (
+                              <tr key={pmt.id}>
+                                <td style={{ whiteSpace: 'nowrap', fontSize: 12 }}>{(pmt.paid_at || pmt.created_at || '').slice(0,10)}</td>
+                                <td style={{ fontSize: 12 }}>{pmt.plan_code}</td>
+                                <td style={{ fontSize: 12, fontWeight: 700 }}>₹{Number(pmt.amount_inr).toLocaleString('en-IN')}</td>
+                                <td>
+                                  <span style={{ padding:'2px 7px', borderRadius:12, fontSize:10, fontWeight:700,
+                                    background: pmt.status === 'success' ? C.successLight : C.errorLight,
+                                    color: pmt.status === 'success' ? C.success : C.error }}>
+                                    {pmt.status.toUpperCase()}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Preferences */}
+                <SecHead>Preferences</SecHead>
+                <div style={{ background: C.card, borderRadius: 12, border: `1px solid ${C.border}`, padding: '8px 14px', marginBottom: 18 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0' }}>
+                    <span style={{ fontSize: 13, color: C.text, fontWeight: 600 }}>Language</span>
+                    <select value={lang} onChange={e => setLang(e.target.value)} style={{
+                      background: C.inputBg, color: C.text, border: `1px solid ${C.border}`, borderRadius: 8,
+                      padding: '6px 28px 6px 10px', fontSize: 12.5, fontWeight: 600, minWidth: 140,
+                    }}>
+                      {Object.entries(LANGS).map(([code, name]) => <option key={code} value={code}>{name}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderTop: `1px solid ${C.border}` }}>
+                    <span style={{ fontSize: 13, color: C.text, fontWeight: 600 }}>Theme</span>
+                    <button onClick={toggle} style={{
+                      background: C.primaryLight, color: C.primary, border: `1px solid ${C.primary}40`,
+                      borderRadius: 8, padding: '6px 14px', fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
+                    }}>{dark ? '☀️ Light' : '🌙 Dark'}</button>
+                  </div>
+                </div>
+              </>
+            )}
+
+          </div>
+
+          {/* Logout footer */}
+          <div style={{ borderTop: `1px solid ${C.border}`, padding: '14px 22px', flexShrink: 0, background: C.card }}>
+            <Btn variant="danger" onClick={onLogout} style={{ width: '100%' }}>🚪 {t('logout') || 'Logout'}</Btn>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
   // Admin Console
   // ──────────────────────────────────────────────────────────────────────────
   // ── Generic modal shell (reused for edit forms) ────────────────────────────
@@ -1368,7 +1767,7 @@
 
     return (
       <div style={{ minHeight: '100vh', background: C.bg }}>
-        <Navbar title="Admin Console" onLogout={onLogout} />
+        <Navbar title="Admin Console" user={user} onLogout={onLogout} />
         {editingLender && <LenderEditModal u={editingLender} onClose={() => setEL(null)} onSaved={load} />}
         {editingPlan && <PlanEditModal p={editingPlan.plan} onClose={() => setEP(null)} onSaved={load} />}
         {creatingAdmin && <AdminCreateModal onClose={() => setCA(false)} onSaved={load} />}
@@ -1669,6 +2068,16 @@
   // ── Landing nav (glass, scroll-aware) ──────────────────────────────────────
   function LandingNav({ scrolled, onAuth }) {
     const { C, dark, toggle } = useTheme();
+    const { lang, setLang } = useLang();
+    const [menu, setMenu] = useState(false);
+    const mref = useRef(null);
+    useEffect(() => {
+      if (!menu) return;
+      const off = e => { if (mref.current && !mref.current.contains(e.target)) setMenu(false); };
+      document.addEventListener('mousedown', off);
+      return () => document.removeEventListener('mousedown', off);
+    }, [menu]);
+
     const go = id => () => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     const links = [['features', 'Features'], ['how', 'How it Works'], ['about', 'About'], ['contact', 'Contact']];
     return (
@@ -1695,11 +2104,44 @@
                 onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.78)'}>{label}</button>
             ))}
           </div>
-          <LangSelector />
-          <button onClick={toggle} title="Toggle theme" style={{
-            background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.18)', color: '#fff',
-            borderRadius: 9, width: 36, height: 34, cursor: 'pointer', fontSize: 14,
-          }}>{dark ? '☀️' : '🌙'}</button>
+
+          {/* Settings dropdown (lang + theme) */}
+          <div style={{ position: 'relative' }} ref={mref}>
+            <button onClick={() => setMenu(m => !m)} title="Settings" style={{
+              background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.18)', color: '#fff',
+              borderRadius: 9, padding: '6px 10px', cursor: 'pointer', fontSize: 14,
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}>
+              ⚙ <span style={{ fontSize: 10, opacity: 0.8 }}>▾</span>
+            </button>
+            {menu && (
+              <div style={{
+                position: 'absolute', top: 'calc(100% + 8px)', right: 0, minWidth: 220,
+                background: C.card, color: C.text, borderRadius: 12, border: `1px solid ${C.border}`,
+                boxShadow: '0 20px 50px rgba(0,0,0,0.4)', padding: 8, zIndex: 250,
+              }}>
+                <div style={{ padding: '8px 10px', fontSize: 11, fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Preferences</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', gap: 10 }}>
+                  <span style={{ fontSize: 13, color: C.text }}>Language</span>
+                  <select value={lang} onChange={e => setLang(e.target.value)} style={{
+                    background: C.inputBg, color: C.text, border: `1px solid ${C.border}`, borderRadius: 7,
+                    padding: '5px 9px', fontSize: 12.5, fontWeight: 600,
+                  }}>
+                    {Object.entries(LANGS).map(([code, name]) => <option key={code} value={code}>{name}</option>)}
+                  </select>
+                </div>
+                <button onClick={toggle} style={{
+                  width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  background: 'transparent', border: 'none', cursor: 'pointer',
+                  padding: '8px 10px', color: C.text, fontSize: 13, fontWeight: 600,
+                }}>
+                  <span>{dark ? '☀️ Light Mode' : '🌙 Dark Mode'}</span>
+                  <span style={{ fontSize: 11, color: C.muted }}>{dark ? 'on' : 'off'}</span>
+                </button>
+              </div>
+            )}
+          </div>
+
           <button onClick={() => onAuth('login')} style={{
             background: '#fff', color: '#0B1020', border: 'none', borderRadius: 9,
             padding: '8px 18px', cursor: 'pointer', fontSize: 13.5, fontWeight: 700, marginLeft: 4,
@@ -1993,22 +2435,19 @@
 
   // ──────────────────────────────────────────────────────────────────────────
 
-  function HomePage({ onNavigate, onLogout, onBilling }) {
-    const { C, dark, toggle } = useTheme();
+  function HomePage({ user, onNavigate, onProfile }) {
+    const { C, dark } = useTheme();
     const { t } = useLang();
-    const dateStr = new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
     const cards = [
       { key: 'add',       icon: '+',  iconColor: '#fff', bg: C.primary, title: t('addNewCase'),       desc: 'Register a new lending record. Date & time are auto-filled.' },
       { key: 'view',      icon: '📋', bg: C.cyan,        title: t('viewAllCases'),    desc: 'Browse, search and filter all records. Click any row for details or to close.' },
       { key: 'existing',  icon: '📂', bg: C.green,       title: t('addExistingCase'), desc: 'Digitise an old record. Enter the original loan date & time manually.' },
       { key: 'dashboard', icon: '📊', bg: C.violet,      title: t('dashboard'),       desc: 'Charts, KPIs, trends, bad debts, top borrowers and full portfolio overview.' },
-      { key: 'billing',   icon: '💳', bg: C.amber,       title: 'Billing & Subscription', desc: 'Manage your plan, view payment history and upgrade.' },
     ];
     return (
       <div style={{ minHeight: '100vh', background: C.bg, transition: 'background-color 0.3s' }}>
-        <Navbar title="LoanTrack" onLogout={onLogout} />
+        <Navbar title="LoanTrack" user={user} onProfile={onProfile} />
         <div className="fade-in" style={{ padding: '36px 24px', maxWidth: 1000, margin: '0 auto' }}>
-          <p style={{ color: C.faint, fontSize: 13.5, marginBottom: 28 }}>{dateStr}</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 20 }}>
             {cards.map(card => (
               <div key={card.key} onClick={() => onNavigate(card.key)} style={{
@@ -2036,7 +2475,7 @@
 
   // ──────────────────────────────────────────────────────────────────────────
 
-  function AddCasePage({ onBack, isExisting, onLogout }) {
+  function AddCasePage({ onBack, isExisting, user, onProfile }) {
     const { C } = useTheme();
     const { t } = useLang();
     const blank = () => ({
@@ -2073,7 +2512,7 @@
 
     return (
       <div style={{ minHeight: '100vh', background: C.bg, transition: 'background-color 0.3s' }}>
-        <Navbar title={isExisting ? 'Add Existing Case' : 'Add New Case'} onBack={onBack} onLogout={onLogout} />
+        <Navbar title={isExisting ? 'Add Existing Case' : 'Add New Case'} onBack={onBack} user={user} onProfile={onProfile} />
         <div className="fade-in" style={{ padding: '28px 20px', maxWidth: 800, margin: '0 auto' }}>
           {isExisting && <div style={{ marginBottom: 16 }}><Alert type="info">📂 Entering an existing record — fill in the original loan date &amp; time manually.</Alert></div>}
           {success && (
@@ -2680,7 +3119,7 @@
 
   // ──────────────────────────────────────────────────────────────────────────
 
-  function ViewCasesPage({ onBack, onLogout }) {
+  function ViewCasesPage({ onBack, user, onProfile }) {
     const { C, dark } = useTheme();
     const [cases, setCases]           = useState([]);
     const [loading, setLoading]       = useState(true);
@@ -2725,7 +3164,7 @@
 
     return (
       <div style={{ minHeight: '100vh', background: C.bg, transition: 'background-color 0.3s' }}>
-        <Navbar title="All Cases" onBack={onBack} onLogout={onLogout} />
+        <Navbar title="All Cases" onBack={onBack} user={user} onProfile={onProfile} />
         {selectedCase && (
           <CaseDetailModal
             caseId={selectedCase.id}
@@ -2832,7 +3271,7 @@
 
   // ── Dashboard ──────────────────────────────────────────────────────────────
 
-  function DashboardPage({ onBack, onLogout }) {
+  function DashboardPage({ onBack, user, onProfile }) {
     const { C, dark } = useTheme();
     const [data, setData]       = useState(null);
     const [loading, setLoading] = useState(true);
@@ -2846,7 +3285,7 @@
 
     const spinnerPage = msg => (
       <div style={{ minHeight: '100vh', background: C.bg, transition: 'background-color 0.3s' }}>
-        <Navbar title="Dashboard & Analytics" onBack={onBack} onLogout={onLogout} />
+        <Navbar title="Dashboard & Analytics" onBack={onBack} user={user} onProfile={onProfile} />
         <div style={{ padding: 60, textAlign: 'center', color: C.faint }}>
           <div style={{ fontSize: 40, marginBottom: 16 }}>📊</div>
           <div>{msg}</div>
@@ -2857,7 +3296,7 @@
     if (loading) return spinnerPage('Crunching numbers…');
     if (error)   return (
       <div style={{ minHeight: '100vh', background: C.bg }}>
-        <Navbar title="Dashboard & Analytics" onBack={onBack} onLogout={onLogout} />
+        <Navbar title="Dashboard & Analytics" onBack={onBack} user={user} onProfile={onProfile} />
         <div style={{ padding: 40 }}><Alert type="error">{error}</Alert></div>
       </div>
     );
@@ -2872,7 +3311,7 @@
 
     return (
       <div style={{ minHeight: '100vh', background: C.bg, transition: 'background-color 0.3s' }}>
-        <Navbar title="Dashboard & Analytics" onBack={onBack} onLogout={onLogout} />
+        <Navbar title="Dashboard & Analytics" onBack={onBack} user={user} onProfile={onProfile} />
         <div className="fade-in" style={{ padding: '28px 20px', maxWidth: 1200, margin: '0 auto' }}>
 
           {secHead('💰 Portfolio Overview')}
@@ -3112,9 +3551,14 @@
     const isUser  = user?.role === 'user';
     const isAdmin = user?.role === 'admin';
 
-    // Force tenants to billing if their subscription expired
-    const forceBilling = isUser && sub && !sub.active;
-    const effectivePage = forceBilling ? 'billing' : page;
+    const [profileOpen, setProfileOpen] = useState(false);
+
+    // Force tenants who are expired into the profile (which contains billing)
+    useEffect(() => {
+      if (isUser && sub && !sub.active) setProfileOpen(true);
+    }, [isUser, sub]);
+
+    const openProfile = () => setProfileOpen(true);
 
     return (
       <LangCtx.Provider value={{ lang, setLang, t }}>
@@ -3125,15 +3569,20 @@
 
         {auth && isUser && (
           <>
-            {effectivePage !== 'billing' && (
-              <SubBanner sub={sub} onUpgrade={() => setPage('billing')} />
+            <SubBanner sub={sub} onUpgrade={openProfile} />
+            {page === 'home'      && <HomePage      user={user} onNavigate={setPage} onProfile={openProfile} />}
+            {page === 'add'       && <AddCasePage   user={user} onBack={() => setPage('home')} isExisting={false} onProfile={openProfile} />}
+            {page === 'existing'  && <AddCasePage   user={user} onBack={() => setPage('home')} isExisting={true}  onProfile={openProfile} />}
+            {page === 'view'      && <ViewCasesPage user={user} onBack={() => setPage('home')} onProfile={openProfile} />}
+            {page === 'dashboard' && <DashboardPage user={user} onBack={() => setPage('home')} onProfile={openProfile} />}
+            {profileOpen && (
+              <ProfilePanel
+                user={user}
+                onClose={() => setProfileOpen(false)}
+                onLogout={async () => { setProfileOpen(false); await logout(); }}
+                refreshMe={refreshMe}
+              />
             )}
-            {effectivePage === 'home'      && <HomePage      onNavigate={setPage} onLogout={logout} onBilling={() => setPage('billing')} />}
-            {effectivePage === 'add'       && <AddCasePage   onBack={() => setPage('home')} isExisting={false} onLogout={logout} />}
-            {effectivePage === 'existing'  && <AddCasePage   onBack={() => setPage('home')} isExisting={true}  onLogout={logout} />}
-            {effectivePage === 'view'      && <ViewCasesPage onBack={() => setPage('home')} onLogout={logout} />}
-            {effectivePage === 'dashboard' && <DashboardPage onBack={() => setPage('home')} onLogout={logout} />}
-            {effectivePage === 'billing'   && <BillingPage   onBack={() => setPage('home')} onLogout={logout} onPaid={refreshMe} />}
           </>
         )}
       </ThemeCtx.Provider>

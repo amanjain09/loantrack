@@ -517,6 +517,16 @@ def init_db():
         cur.execute(OTP_DDL_PG)
         cur.execute(AUDIT_DDL_PG)
         cur.execute(CASE_HISTORY_DDL_PG)
+        # KYC + profile columns on users (idempotent migration)
+        for col_def in [
+            "ADD COLUMN IF NOT EXISTS aadhaar TEXT",
+            "ADD COLUMN IF NOT EXISTS pan TEXT",
+            "ADD COLUMN IF NOT EXISTS dob TEXT",
+            "ADD COLUMN IF NOT EXISTS address TEXT",
+            "ADD COLUMN IF NOT EXISTS business_name TEXT",
+            "ADD COLUMN IF NOT EXISTS kyc_status TEXT DEFAULT 'pending'",
+        ]:
+            cur.execute(f"ALTER TABLE users {col_def}")
 
         cur.execute("UPDATE cases SET status = 'open' WHERE status IS NULL")
         conn.commit()
@@ -576,6 +586,13 @@ def init_db():
         conn.execute(OTP_DDL_SQ)
         conn.execute(AUDIT_DDL_SQ)
         conn.execute(CASE_HISTORY_DDL_SQ)
+        # KYC + profile columns on users (idempotent — SQLite has no IF NOT EXISTS for ALTER)
+        for col_def in [
+            "aadhaar TEXT", "pan TEXT", "dob TEXT", "address TEXT",
+            "business_name TEXT", "kyc_status TEXT DEFAULT 'pending'",
+        ]:
+            try:    conn.execute(f"ALTER TABLE users ADD COLUMN {col_def}")
+            except: pass
         conn.execute("UPDATE cases SET status = 'open' WHERE status IS NULL")
         conn.commit()
     conn.close()
@@ -712,6 +729,68 @@ def check_auth():
 @app.route("/api/auth/me")
 def auth_me():
     return check_auth()
+
+
+def _mask_id(id_int, prefix="PV-"):
+    return f"{prefix}{int(id_int):06d}" if id_int else None
+
+
+@app.route("/api/users/me/profile", methods=["GET"])
+@require_auth(roles=["user", "admin"])
+def get_my_profile(_user):
+    """Full profile for the currently logged-in user including KYC + sub + payments."""
+    conn = get_db()
+    cur  = db_execute(conn,
+        "SELECT id, name, phone, email, role, status, "
+        "aadhaar, pan, dob, address, business_name, kyc_status, created_at "
+        "FROM users WHERE id = ?", (_user["id"],))
+    row = cur.fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"error": "Not found"}), 404
+    profile = dict(row)
+    profile["customer_id"] = _mask_id(profile["id"])
+
+    sub = None
+    payments = []
+    if _user["role"] == "user":
+        sub = get_active_subscription(_user["id"])
+        cur = db_execute(conn, "SELECT * FROM payments WHERE user_id = ? ORDER BY id DESC LIMIT 20", (_user["id"],))
+        payments = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return jsonify({"profile": profile, "subscription": sub, "payments": payments})
+
+
+_PROFILE_EDITABLE = ("name", "email", "address", "business_name", "aadhaar", "pan", "dob")
+
+
+@app.route("/api/users/me", methods=["PATCH"])
+@require_auth(roles=["user", "admin"])
+def edit_my_profile(_user):
+    """Edit own profile (non-sensitive fields). Phone and role cannot be changed here."""
+    data = request.get_json() or {}
+    fields, params = [], []
+    for k in _PROFILE_EDITABLE:
+        if k not in data:
+            continue
+        v = data.get(k)
+        if isinstance(v, str):
+            v = v.strip() or None
+        fields.append(f"{k} = ?")
+        params.append(v)
+    if not fields:
+        return jsonify({"error": "Nothing to update"}), 400
+    params.append(_user["id"])
+    conn = get_db()
+    try:
+        db_execute(conn, f"UPDATE users SET {', '.join(fields)} WHERE id = ?", params)
+        conn.commit()
+    except Exception as e:
+        conn.close()
+        return jsonify({"error": str(e)}), 400
+    conn.close()
+    audit("profile_self_edit", "user", _user["id"], {"fields": list(data.keys())})
+    return jsonify({"success": True})
 
 
 @app.route("/api/auth/login", methods=["POST"])
