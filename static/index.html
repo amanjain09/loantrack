@@ -202,21 +202,19 @@
   ];
 
   // ── Brand logo ────────────────────────────────────────────────────────────
-  // Renders /static/logo.png with:
-  //  • background-size + position shifts to centre the PV monogram
-  //    (source PNG has more whitespace on the right)
-  //  • radial mask that fades the corners into whatever's behind it
-  //  • optional glow for hero placements
+  // Source PNG has been pre-cropped to 512×512 with the PV monogram dead
+  // centre, so we just cover + centre. A radial mask softly fades the
+  // corners into whatever background sits behind the logo.
   function Logo({ size = 40, glow = false, style: s = {} }) {
     return (
       <div style={{
         width: size, height: size, flexShrink: 0,
         backgroundImage: 'url(/static/logo.png)',
         backgroundRepeat: 'no-repeat',
-        backgroundSize:    '128% auto',     // zoom slightly to crop excess right whitespace
-        backgroundPosition:'32% center',    // shift focus left so PV sits centred
-        WebkitMaskImage: 'radial-gradient(circle at 50% 50%, #000 52%, transparent 88%)',
-        maskImage:       'radial-gradient(circle at 50% 50%, #000 52%, transparent 88%)',
+        backgroundSize:    'cover',
+        backgroundPosition:'center',
+        WebkitMaskImage: 'radial-gradient(circle at 50% 50%, #000 58%, transparent 92%)',
+        maskImage:       'radial-gradient(circle at 50% 50%, #000 58%, transparent 92%)',
         WebkitMaskRepeat:'no-repeat', maskRepeat:'no-repeat',
         WebkitMaskSize:  '100% 100%',       maskSize:  '100% 100%',
         filter: glow ? 'drop-shadow(0 6px 22px rgba(56,189,248,0.45))' : 'none',
@@ -637,7 +635,7 @@
               borderRadius: 7, padding: '5px 11px', cursor: 'pointer', fontSize: 17, lineHeight: 1,
             }}>←</button>
           )}
-          <Logo size={32} />
+          <Logo size={36} />
           <span style={{ fontWeight: 800, fontSize: 16.5, letterSpacing: '-0.01em' }}>{title}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
