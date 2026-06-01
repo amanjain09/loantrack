@@ -537,4 +537,6 @@ If you're a Claude session picking this up, here's what's important:
 
 ---
 
-_Last updated: 2026-06-01 — commit `remove-i18n-ui`_
+| 2026-06 | nav-theme-out + profile-redesign | (a) Pulled dark-mode toggle out of profile/preferences and made it a standalone circular button visible in every navbar (tenant, admin, and landing page). Landing-page "⚙ Settings" dropdown removed entirely. (b) Re-designed `ProfilePanel` in a Zepto-style accordion layout: soft gradient hero card with avatar + Customer ID + live subscription chip, collapsible icon-led sections (👤 Profile · 🪪 KYC · 💳 Subscription · 📜 Payments · 🏢 Branches), animated chevrons, default-open Profile section, summary previews when collapsed, modern pill-shaped status chips, prominent red Logout pinned at the bottom. Preferences section removed since theme is now in the navbar. |
+
+_Last updated: 2026-06-01 — commit `profile-redesign`_

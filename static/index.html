@@ -806,6 +806,17 @@
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Theme toggle — always visible, standalone */}
+          <button
+            onClick={toggle}
+            title={dark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            aria-label="Toggle theme"
+            style={{
+              background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.22)',
+              color: '#fff', borderRadius: 999, width: 36, height: 36, cursor: 'pointer',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 15,
+            }}>{dark ? '☀️' : '🌙'}</button>
+
           {/* Tenant: avatar button → opens full profile panel */}
           {isTenant && onProfile && (
             <button
@@ -822,7 +833,7 @@
             </button>
           )}
 
-          {/* Staff: small dropdown menu (lang + theme + logout) */}
+          {/* Staff: avatar dropdown (just logout now — theme is the standalone button above) */}
           {isStaff && (
             <div style={{ position: 'relative' }} ref={menuRef}>
               <button
@@ -840,52 +851,30 @@
               </button>
               {menu && (
                 <div style={{
-                  position: 'absolute', top: 'calc(100% + 8px)', right: 0, minWidth: 240,
+                  position: 'absolute', top: 'calc(100% + 8px)', right: 0, minWidth: 200,
                   background: C.card, color: C.text, borderRadius: 12, border: `1px solid ${C.border}`,
                   boxShadow: '0 20px 50px rgba(0,0,0,0.4)', padding: '8px 8px', zIndex: 250,
                 }}>
-                  <div style={{ padding: '8px 10px', fontSize: 11, fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('preferences')}</div>
-                  <button onClick={toggle} style={{
-                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    background: 'transparent', border: 'none', cursor: 'pointer',
-                    padding: '8px 10px', color: C.text, fontSize: 13, fontWeight: 600,
-                  }}>
-                    <span>{dark ? '☀️ Light Mode' : '🌙 Dark Mode'}</span>
-                    <span style={{ fontSize: 11, color: C.muted }}>{dark ? 'on' : 'off'}</span>
-                  </button>
+                  <div style={{ padding: '10px 12px 4px', fontSize: 11, fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{user?.name || 'Account'}</div>
                   {onLogout && (
-                    <>
-                      <div style={{ height: 1, background: C.border, margin: '6px 4px' }} />
-                      <button onClick={() => { setMenu(false); onLogout(); }} style={{
-                        width: '100%', textAlign: 'left',
-                        background: 'transparent', border: 'none', cursor: 'pointer',
-                        padding: '9px 10px', color: C.error, fontSize: 13, fontWeight: 700,
-                      }}>🚪 {t('logout') || 'Logout'}</button>
-                    </>
+                    <button onClick={() => { setMenu(false); onLogout(); }} style={{
+                      width: '100%', textAlign: 'left',
+                      background: 'transparent', border: 'none', cursor: 'pointer',
+                      padding: '10px 12px', color: C.error, fontSize: 13.5, fontWeight: 700,
+                    }}>🚪 {t('logout') || 'Logout'}</button>
                   )}
                 </div>
               )}
             </div>
           )}
 
-          {/* No user yet (legacy): keep old controls just in case */}
-          {!isTenant && !isStaff && (
-            <>
-              <button onClick={toggle} title={dark ? 'Switch to Light Mode' : 'Switch to Dark Mode'} style={{
-                background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.2)',
-                color: '#fff', borderRadius: 8, padding: '5px 12px', cursor: 'pointer',
-                fontSize: 13, fontWeight: 600,
-              }}>
-                {dark ? '☀️ Light' : '🌙 Dark'}
-              </button>
-              {onLogout && (
-                <button onClick={onLogout} style={{
-                  background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)',
-                  color: '#fff', borderRadius: 7, padding: '6px 14px', cursor: 'pointer',
-                  fontSize: 13, fontWeight: 600,
-                }}>{t('logout')}</button>
-              )}
-            </>
+          {/* No user yet (legacy): just logout */}
+          {!isTenant && !isStaff && onLogout && (
+            <button onClick={onLogout} style={{
+              background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)',
+              color: '#fff', borderRadius: 7, padding: '6px 14px', cursor: 'pointer',
+              fontSize: 13, fontWeight: 600,
+            }}>{t('logout')}</button>
           )}
         </div>
       </div>
@@ -1403,9 +1392,67 @@
   //   • Preferences (language, theme)
   //   • Logout at the very bottom
   // ──────────────────────────────────────────────────────────────────────────
+  // ──────────────────────────────────────────────────────────────────────────
+  // ProfilePanel — slide-out, collapsible-section layout (Zepto-style)
+  //   • Soft gradient hero card with avatar + customer-id + sub chip
+  //   • Each section is a touch-friendly accordion: icon · title · summary · chevron
+  //   • Smooth open/close, default closed (except Profile by default)
+  //   • Logout pinned to the footer
+  // ──────────────────────────────────────────────────────────────────────────
+  function AccordionSection({ icon, title, summary, badge, defaultOpen, children, action }) {
+    const { C } = useTheme();
+    const [open, setOpen] = useState(!!defaultOpen);
+    return (
+      <div style={{
+        background: C.card, borderRadius: 16, border: `1px solid ${C.border}`,
+        marginBottom: 12, overflow: 'hidden',
+        boxShadow: open ? `0 8px 24px rgba(0,0,0,${C.bg === DARK.bg ? '0.35' : '0.06'})` : 'none',
+        transition: 'box-shadow 0.25s ease',
+      }}>
+        <button
+          onClick={() => setOpen(o => !o)}
+          style={{
+            width: '100%', display: 'flex', alignItems: 'center', gap: 12,
+            background: 'transparent', border: 'none', cursor: 'pointer',
+            padding: '14px 16px', textAlign: 'left',
+          }}
+        >
+          <div style={{
+            width: 38, height: 38, borderRadius: 12,
+            background: C.primary + '15', color: C.primary,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 17, flexShrink: 0,
+          }}>{icon}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ fontSize: 14.5, fontWeight: 700, color: C.text, lineHeight: 1.15 }}>{title}</div>
+              {badge}
+            </div>
+            {summary && !open && (
+              <div style={{ fontSize: 12.5, color: C.muted, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {summary}
+              </div>
+            )}
+          </div>
+          <span style={{
+            color: C.muted, fontSize: 14, flexShrink: 0,
+            transition: 'transform 0.25s ease',
+            transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
+          }}>▾</span>
+        </button>
+        {open && (
+          <div className="fade-in" style={{ padding: '4px 16px 18px', borderTop: `1px solid ${C.border}` }}>
+            {action && <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '10px 0 12px' }}>{action}</div>}
+            {children}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   function ProfilePanel({ user, onClose, onLogout, refreshMe }) {
-    const { C, dark, toggle } = useTheme();
-    const { lang, setLang, t } = useLang();
+    const { C, dark } = useTheme();
+    const { t } = useLang();
     const [data, setData]       = useState(null);
     const [plans, setPlans]     = useState([]);
     const [editing, setEditing] = useState(false);
@@ -1416,15 +1463,9 @@
     const [billErr, setBillErr] = useState('');
     const [billOK, setBillOK]   = useState('');
 
-    // 5h Branches state
     const [branches, setBranches]       = useState([]);
     const [newBranch, setNewBranch]     = useState({ name: '', address: '' });
     const [addingBranch, setAddingBranch] = useState(false);
-
-    // 5f 2FA state
-    const [twofa, setTwofa]     = useState(null);   // { secret, uri } during setup
-    const [totp, setTotp]       = useState('');
-    const [twofaErr, setTwofaErr] = useState('');
 
     const load = useCallback(async () => {
       try {
@@ -1436,6 +1477,13 @@
         setData(d); setPlans(p.filter(x => !x.is_trial)); setBranches(br);
       } catch (e) { /* swallow */ }
     }, []);
+    useEffect(() => { load(); }, [load]);
+
+    useEffect(() => {
+      const onEsc = e => { if (e.key === 'Escape') onClose(); };
+      document.addEventListener('keydown', onEsc);
+      return () => document.removeEventListener('keydown', onEsc);
+    }, [onClose]);
 
     const addBranch = async () => {
       if (!newBranch.name.trim()) return;
@@ -1449,28 +1497,6 @@
       if (!confirm('Delete this branch? Cases assigned to it will become unassigned.')) return;
       try { await api.req(`/api/branches/${id}`, { method: 'DELETE' }); load(); } catch {}
     };
-
-    const start2FA = async () => {
-      setTwofaErr('');
-      try { setTwofa(await api.post('/api/auth/2fa/setup', {})); }
-      catch (e) { setTwofaErr(e.message); }
-    };
-    const confirm2FA = async () => {
-      setTwofaErr('');
-      try { await api.post('/api/auth/2fa/verify', { code: totp }); setTwofa(null); setTotp(''); load(); refreshMe?.(); }
-      catch (e) { setTwofaErr(e.message); }
-    };
-    const disable2FA = async () => {
-      if (!confirm('Disable 2FA on your account?')) return;
-      try { await api.post('/api/auth/2fa/disable', {}); load(); refreshMe?.(); } catch {}
-    };
-    useEffect(() => { load(); }, [load]);
-
-    useEffect(() => {
-      const onEsc = e => { if (e.key === 'Escape') onClose(); };
-      document.addEventListener('keydown', onEsc);
-      return () => document.removeEventListener('keydown', onEsc);
-    }, [onClose]);
 
     const startEdit = () => {
       const p = data?.profile || {};
@@ -1505,174 +1531,213 @@
     const p = data?.profile;
     const sub = data?.subscription;
     const payments = data?.payments || [];
+    const maskAadhaar = (a) => a ? `xxxx-xxxx-${String(a).replace(/\D/g,'').slice(-4)}` : null;
+    const maskPan     = (v) => v ? `${String(v).slice(0,2)}xxxxx${String(v).slice(-1)}` : null;
 
-    const SecHead = ({ children, action }) => (
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        marginBottom: 12,
-      }}>
-        <div style={{ fontSize: 11, fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{children}</div>
-        {action}
-      </div>
-    );
+    // Pretty mini "row" for collapsed content
     const Row = ({ label, value }) => (
       <div style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-        gap: 12, padding: '7px 0', borderBottom: `1px solid ${C.border}`,
+        gap: 12, padding: '9px 0', borderBottom: `1px solid ${C.border}`,
       }}>
         <span style={{ color: C.muted, fontSize: 12.5, flexShrink: 0 }}>{label}</span>
-        <span style={{ color: C.text, fontWeight: 600, fontSize: 13, textAlign: 'right', wordBreak: 'break-word' }}>{value || '—'}</span>
+        <span style={{ color: C.text, fontWeight: 600, fontSize: 13.5, textAlign: 'right', wordBreak: 'break-word' }}>{value || '—'}</span>
       </div>
     );
-    const maskAadhaar = (a) => a ? `xxxx-xxxx-${String(a).replace(/\D/g,'').slice(-4)}` : null;
-    const maskPan     = (p) => p ? `${String(p).slice(0,2)}xxxxx${String(p).slice(-1)}` : null;
+
+    // Subscription summary chip (visible always in hero card)
+    const subChip = sub ? (
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', gap: 5,
+        padding: '4px 11px', borderRadius: 999,
+        background: sub.active ? 'rgba(74,222,128,0.18)' : 'rgba(248,113,113,0.18)',
+        color: sub.active ? '#86EFAC' : '#FCA5A5',
+        fontSize: 11.5, fontWeight: 700, letterSpacing: '0.02em',
+      }}>
+        <span style={{
+          width: 6, height: 6, borderRadius: '50%',
+          background: sub.active ? '#4ADE80' : '#F87171',
+          boxShadow: sub.active ? '0 0 0 3px rgba(74,222,128,0.25)' : 'none',
+        }} />
+        {sub.active
+          ? `${(sub.plan_code || '').replace('_', ' ').toUpperCase()} · ${sub.days_left}d left`
+          : 'EXPIRED'}
+      </span>
+    ) : null;
 
     return (
       <div onClick={e => e.target === e.currentTarget && onClose()} style={{
         position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 600,
-        backdropFilter: 'blur(3px)',
+        backdropFilter: 'blur(4px)',
       }}>
         <div className="fade-in" style={{
-          position: 'absolute', top: 0, right: 0, width: 'min(440px, 100vw)', height: '100vh',
+          position: 'absolute', top: 0, right: 0, width: 'min(460px, 100vw)', height: '100vh',
           background: C.bg, borderLeft: `1px solid ${C.border}`,
-          boxShadow: '-30px 0 60px rgba(0,0,0,0.35)',
+          boxShadow: '-30px 0 60px rgba(0,0,0,0.4)',
           display: 'flex', flexDirection: 'column',
         }}>
-          {/* Header */}
+          {/* ── Hero card (soft gradient) ── */}
           <div style={{
-            background: C.navBg, color: '#fff', padding: '18px 22px',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
+            background: `linear-gradient(135deg, ${C.primary} 0%, ${C.cyan} 100%)`,
+            color: '#fff', padding: '20px 22px 22px',
+            display: 'flex', flexDirection: 'column', gap: 14, flexShrink: 0,
+            position: 'relative',
           }}>
+            <div style={{ position: 'absolute', top: 14, right: 14 }}>
+              <button onClick={onClose} aria-label="Close" style={{
+                background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)',
+                borderRadius: 10, width: 32, height: 32, color: '#fff', cursor: 'pointer', fontSize: 14,
+              }}>✕</button>
+            </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <Avatar name={p?.name || user?.name} size={50} bg="rgba(255,255,255,0.25)" />
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 800 }}>{p?.name || user?.name}</div>
+              <Avatar name={p?.name || user?.name} size={56} bg="rgba(255,255,255,0.25)" />
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 18, fontWeight: 800, lineHeight: 1.15 }}>{p?.name || user?.name}</div>
                 {p?.customer_id && (
-                  <div style={{ fontSize: 12, opacity: 0.85, fontWeight: 600, marginTop: 2 }}>
-                    Customer ID: <span style={{ fontFamily: 'ui-monospace, monospace' }}>{p.customer_id}</span>
+                  <div style={{ fontSize: 11.5, opacity: 0.9, fontWeight: 600, marginTop: 3, fontFamily: 'ui-monospace, monospace' }}>
+                    {p.customer_id}
                   </div>
                 )}
-                {p?.phone && <div style={{ fontSize: 12, opacity: 0.78, marginTop: 1 }}>+91 {p.phone}</div>}
+                {p?.phone && <div style={{ fontSize: 12.5, opacity: 0.82, marginTop: 2 }}>+91 {p.phone}</div>}
               </div>
             </div>
-            <button onClick={onClose} style={{
-              background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.25)',
-              borderRadius: 8, width: 34, height: 34, color: '#fff', cursor: 'pointer', fontSize: 14,
-            }}>✕</button>
+            {subChip && <div>{subChip}</div>}
           </div>
 
-          {/* Scroll body */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '22px 22px 12px' }}>
-
-            {!data ? <div style={{ color: C.faint, textAlign: 'center', padding: 30 }}>Loading…</div> : (
+          {/* ── Scrollable accordion body ── */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '14px 14px 14px' }}>
+            {!data ? (
+              <div style={{ color: C.faint, textAlign: 'center', padding: 30 }}>Loading…</div>
+            ) : (
               <>
-                {/* Profile Details (with edit) */}
-                <SecHead action={!editing && <Btn variant="secondary" onClick={startEdit} style={{ padding: '5px 12px', fontSize: 12 }}>✏️ {t('edit')}</Btn>}>{t('profileDetails')}</SecHead>
-                {!editing && (
-                  <div style={{ background: C.card, borderRadius: 12, padding: '8px 16px', border: `1px solid ${C.border}`, marginBottom: 18 }}>
-                    <Row label="Name"          value={p?.name} />
-                    <Row label="Email"         value={p?.email} />
-                    <Row label="Phone"         value={p?.phone ? `+91 ${p.phone}  · verified ✓` : null} />
-                    <Row label="Business"      value={p?.business_name} />
-                    <Row label="Address"       value={p?.address} />
-                  </div>
-                )}
-                {editing && (
-                  <div style={{ background: C.card, borderRadius: 12, padding: '16px', border: `1px solid ${C.border}`, marginBottom: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    <Input label="Name" required value={form.name} onChange={ef('name')} />
-                    <Input label="Email" type="email" value={form.email} onChange={ef('email')} />
-                    <Input label="Business / Firm" value={form.business_name} onChange={ef('business_name')} />
-                    <Textarea label="Address" rows={2} value={form.address} onChange={ef('address')} />
-                    <div style={{ height: 1, background: C.border, margin: '4px 0' }} />
-                    <div style={{ fontSize: 11, fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>KYC Details</div>
-                    <Input label="Aadhaar Number" value={form.aadhaar} onChange={ef('aadhaar')} placeholder="1234-5678-9012" />
-                    <Input label="PAN" value={form.pan} onChange={ef('pan')} placeholder="ABCDE1234F" />
-                    <Input label="Date of Birth" type="date" value={form.dob} onChange={ef('dob')} />
-                    {editErr && <Alert type="error">{editErr}</Alert>}
-                    <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                      <Btn variant="secondary" onClick={() => { setEditing(false); setEditErr(''); }}>Cancel</Btn>
-                      <Btn onClick={doSave} loading={savingForm}>Save</Btn>
+                {/* Profile Details */}
+                <AccordionSection
+                  icon="👤"
+                  title="Profile Details"
+                  summary={`${p?.name || ''}${p?.email ? ' · ' + p.email : ''}`}
+                  defaultOpen
+                  action={!editing && (
+                    <Btn variant="secondary" onClick={startEdit} style={{ padding: '6px 14px', fontSize: 12.5 }}>✏️ Edit</Btn>
+                  )}
+                >
+                  {!editing ? (
+                    <div>
+                      <Row label="Name"      value={p?.name} />
+                      <Row label="Email"     value={p?.email} />
+                      <Row label="Phone"     value={p?.phone ? `+91 ${p.phone} · verified ✓` : null} />
+                      <Row label="Business"  value={p?.business_name} />
+                      <Row label="Address"   value={p?.address} />
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      <Input label="Name" required value={form.name} onChange={ef('name')} />
+                      <Input label="Email" type="email" value={form.email} onChange={ef('email')} />
+                      <Input label="Business / Firm" value={form.business_name} onChange={ef('business_name')} />
+                      <Textarea label="Address" rows={2} value={form.address} onChange={ef('address')} />
+                      {editErr && <Alert type="error">{editErr}</Alert>}
+                      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+                        <Btn variant="secondary" onClick={() => { setEditing(false); setEditErr(''); }}>Cancel</Btn>
+                        <Btn onClick={doSave} loading={savingForm}>Save Changes</Btn>
+                      </div>
+                    </div>
+                  )}
+                </AccordionSection>
 
-                {/* KYC summary (read-only) */}
-                {!editing && (
-                  <>
-                    <SecHead>{t('kycDetails')}</SecHead>
-                    <div style={{ background: C.card, borderRadius: 12, padding: '8px 16px', border: `1px solid ${C.border}`, marginBottom: 18 }}>
-                      <Row label="Aadhaar"  value={maskAadhaar(p?.aadhaar)} />
-                      <Row label="PAN"      value={maskPan(p?.pan)} />
-                      <Row label="DOB"      value={p?.dob} />
-                      <Row label="Status"   value={
-                        <span style={{
-                          padding: '2px 9px', borderRadius: 12, fontSize: 11, fontWeight: 700,
-                          background: (p?.kyc_status === 'verified') ? C.successLight : C.amberLight,
-                          color:      (p?.kyc_status === 'verified') ? C.success      : C.amber,
-                          textTransform: 'uppercase',
-                        }}>{p?.kyc_status || 'pending'}</span>
-                      } />
+                {/* KYC */}
+                <AccordionSection
+                  icon="🪪"
+                  title="KYC Verification"
+                  summary={p?.kyc_status === 'verified' ? 'Verified ✓' : `Status: ${p?.kyc_status || 'pending'}`}
+                  badge={
+                    <span style={{
+                      padding: '2px 9px', borderRadius: 12, fontSize: 10.5, fontWeight: 800,
+                      background: p?.kyc_status === 'verified' ? C.successLight : C.amberLight,
+                      color:      p?.kyc_status === 'verified' ? C.success      : C.amber,
+                      textTransform: 'uppercase', letterSpacing: '0.04em',
+                    }}>{p?.kyc_status || 'pending'}</span>
+                  }
+                >
+                  {!editing ? (
+                    <div>
+                      <Row label="Aadhaar" value={maskAadhaar(p?.aadhaar)} />
+                      <Row label="PAN"     value={maskPan(p?.pan)} />
+                      <Row label="DOB"     value={p?.dob} />
                     </div>
-                  </>
-                )}
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      <Input label="Aadhaar Number" value={form.aadhaar} onChange={ef('aadhaar')} placeholder="1234-5678-9012" />
+                      <Input label="PAN" value={form.pan} onChange={ef('pan')} placeholder="ABCDE1234F" />
+                      <Input label="Date of Birth" type="date" value={form.dob} onChange={ef('dob')} />
+                      <div style={{ fontSize: 12, color: C.faint }}>Save from Profile Details above.</div>
+                    </div>
+                  )}
+                </AccordionSection>
 
                 {/* Subscription & Billing */}
-                <SecHead>{t('subscription')}</SecHead>
-                <div style={{ background: C.card, borderRadius: 12, padding: '14px 16px', border: `1px solid ${C.border}`, marginBottom: 12 }}>
-                  {!sub ? <div style={{ color: C.faint, fontSize: 13 }}>No active subscription.</div> : (
-                    <>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                          <div style={{ fontSize: 18, fontWeight: 800, color: C.text }}>
-                            {String(sub.plan_code).replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                          </div>
-                          <div style={{ fontSize: 12, color: sub.active ? C.success : C.error, fontWeight: 600, marginTop: 2 }}>
-                            {sub.active ? `${sub.days_left} day${sub.days_left===1?'':'s'} remaining` : 'Expired'}
-                          </div>
-                          {sub.expires_at_iso && (
-                            <div style={{ fontSize: 11, color: C.faint, marginTop: 2 }}>
-                              Until {new Date(sub.expires_at_iso).toLocaleDateString('en-IN', { day:'numeric', month:'long', year:'numeric' })}
-                            </div>
-                          )}
-                        </div>
-                        <span style={{
-                          padding: '4px 10px', borderRadius: 14, fontSize: 11, fontWeight: 800,
-                          background: sub.active ? C.successLight : C.errorLight,
-                          color:      sub.active ? C.success      : C.error,
-                          textTransform: 'uppercase',
-                        }}>{sub.effective_status || sub.status}</span>
-                      </div>
-                    </>
+                <AccordionSection
+                  icon="💳"
+                  title="Subscription & Billing"
+                  summary={sub ? `${(sub.plan_code || '').replace('_',' ')} · ${sub.active ? sub.days_left + 'd left' : 'expired'}` : 'No active plan'}
+                  badge={sub && (
+                    <span style={{
+                      padding: '2px 9px', borderRadius: 12, fontSize: 10.5, fontWeight: 800,
+                      background: sub.active ? C.successLight : C.errorLight,
+                      color:      sub.active ? C.success      : C.error,
+                      textTransform: 'uppercase', letterSpacing: '0.04em',
+                    }}>{sub.effective_status || sub.status}</span>
                   )}
-                </div>
-
-                {/* Plans grid */}
-                {billErr && <Alert type="error">{billErr}</Alert>}
-                {billOK  && <Alert type="success">{billOK}</Alert>}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 18 }}>
-                  {plans.map(pl => {
-                    const isCurrent = sub?.plan_code === pl.code && sub?.active;
-                    return (
-                      <div key={pl.code} style={{
-                        background: C.card, borderRadius: 12, padding: '12px 14px',
-                        border: `2px solid ${isCurrent ? C.success : C.border}`,
-                      }}>
-                        <div style={{ fontSize: 11, fontWeight: 800, color: C.muted, textTransform: 'uppercase' }}>{pl.name}</div>
-                        <div style={{ fontSize: 18, fontWeight: 800, color: C.text, marginTop: 4 }}>₹{Number(pl.price_inr).toLocaleString('en-IN')}</div>
-                        <div style={{ fontSize: 11, color: C.faint, marginTop: 2 }}>{pl.duration_days} days</div>
-                        <Btn onClick={() => buy(pl.code)} loading={busyPlan === pl.code} disabled={isCurrent} style={{ width: '100%', marginTop: 10, padding: '7px 10px', fontSize: 12 }}>
-                          {isCurrent ? '✓ Current' : 'Subscribe'}
-                        </Btn>
+                >
+                  {sub && (
+                    <div style={{
+                      background: C.bg, borderRadius: 12, padding: '14px 16px', marginBottom: 14,
+                      border: `1px solid ${C.border}`,
+                    }}>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: C.text }}>
+                        {String(sub.plan_code).replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}
                       </div>
-                    );
-                  })}
-                </div>
+                      <div style={{ fontSize: 12.5, color: sub.active ? C.success : C.error, fontWeight: 700, marginTop: 2 }}>
+                        {sub.active ? `${sub.days_left} day${sub.days_left===1?'':'s'} remaining` : 'Expired — renew below'}
+                      </div>
+                      {sub.expires_at_iso && (
+                        <div style={{ fontSize: 11.5, color: C.faint, marginTop: 3 }}>
+                          Until {new Date(sub.expires_at_iso).toLocaleDateString('en-IN', { day:'numeric', month:'long', year:'numeric' })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {billErr && <div style={{ marginBottom: 10 }}><Alert type="error">{billErr}</Alert></div>}
+                  {billOK  && <div style={{ marginBottom: 10 }}><Alert type="success">{billOK}</Alert></div>}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    {plans.map(pl => {
+                      const isCurrent = sub?.plan_code === pl.code && sub?.active;
+                      return (
+                        <div key={pl.code} style={{
+                          background: C.bg, borderRadius: 12, padding: '12px 14px',
+                          border: `2px solid ${isCurrent ? C.success : C.border}`,
+                          transition: 'border-color 0.2s ease',
+                        }}>
+                          <div style={{ fontSize: 11, fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{pl.name}</div>
+                          <div style={{ fontSize: 19, fontWeight: 800, color: C.text, marginTop: 4 }}>₹{Number(pl.price_inr).toLocaleString('en-IN')}</div>
+                          <div style={{ fontSize: 11, color: C.faint, marginTop: 2 }}>{pl.duration_days} days</div>
+                          <Btn onClick={() => buy(pl.code)} loading={busyPlan === pl.code} disabled={isCurrent} style={{ width: '100%', marginTop: 12, padding: '7px 10px', fontSize: 12 }}>
+                            {isCurrent ? '✓ Current' : 'Subscribe'}
+                          </Btn>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </AccordionSection>
 
-                {/* Payment history */}
-                {payments.length > 0 && (
-                  <>
-                    <SecHead>{t('paymentHistory')}</SecHead>
-                    <div style={{ background: C.card, borderRadius: 12, border: `1px solid ${C.border}`, marginBottom: 18, overflow: 'hidden' }}>
+                {/* Payment History */}
+                <AccordionSection
+                  icon="📜"
+                  title="Payment History"
+                  summary={`${payments.length} transaction${payments.length === 1 ? '' : 's'}`}
+                >
+                  {payments.length === 0 ? (
+                    <div style={{ color: C.faint, fontSize: 13, padding: '8px 0' }}>No payments yet.</div>
+                  ) : (
+                    <div style={{ background: C.bg, borderRadius: 12, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
                       <div className="tbl-wrap">
                         <table>
                           <thead><tr><th>Date</th><th>Plan</th><th>Amount</th><th>Status</th></tr></thead>
@@ -1695,26 +1760,49 @@
                         </table>
                       </div>
                     </div>
-                  </>
-                )}
+                  )}
+                </AccordionSection>
 
                 {/* Branches */}
-                <SecHead action={!addingBranch && <Btn variant="secondary" onClick={() => setAddingBranch(true)} style={{ padding: '5px 12px', fontSize: 12 }}>+ {t('addNewCase').split(' ')[0]}</Btn>}>{t('branches')}</SecHead>
-                <div style={{ background: C.card, borderRadius: 12, border: `1px solid ${C.border}`, padding: '6px 14px', marginBottom: 18 }}>
-                  {branches.length === 0 && !addingBranch && <div style={{ fontSize: 12.5, color: C.faint, padding: '6px 0' }}>No branches yet — add your first to start scoping cases by location.</div>}
+                <AccordionSection
+                  icon="🏢"
+                  title="Branches"
+                  summary={branches.length === 0 ? 'No branches yet' : `${branches.length} branch${branches.length === 1 ? '' : 'es'}`}
+                  action={!addingBranch && (
+                    <Btn variant="secondary" onClick={() => setAddingBranch(true)} style={{ padding: '6px 14px', fontSize: 12.5 }}>+ Add Branch</Btn>
+                  )}
+                >
+                  {branches.length === 0 && !addingBranch && (
+                    <div style={{ fontSize: 13, color: C.faint, padding: '6px 0 12px' }}>
+                      Add your first branch to start scoping cases by location.
+                    </div>
+                  )}
                   {branches.map(b => (
-                    <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: `1px solid ${C.border}` }}>
-                      <div>
+                    <div key={b.id} style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      padding: '10px 0', borderBottom: `1px solid ${C.border}`,
+                    }}>
+                      <div style={{ minWidth: 0, flex: 1 }}>
                         <div style={{ fontSize: 13.5, fontWeight: 700, color: C.text }}>
-                          {b.name} {b.is_default ? <span style={{ fontSize: 10, color: C.success, marginLeft: 6 }}>DEFAULT</span> : null}
+                          {b.name}
+                          {b.is_default && (
+                            <span style={{
+                              fontSize: 9.5, color: C.success, marginLeft: 8,
+                              background: C.successLight, padding: '2px 7px', borderRadius: 10,
+                              fontWeight: 800, letterSpacing: '0.04em',
+                            }}>DEFAULT</span>
+                          )}
                         </div>
-                        {b.address && <div style={{ fontSize: 12, color: C.muted }}>{b.address}</div>}
+                        {b.address && <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{b.address}</div>}
                       </div>
-                      <button onClick={() => deleteBranch(b.id)} style={{ background: 'none', border: 'none', color: C.error, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>Remove</button>
+                      <button onClick={() => deleteBranch(b.id)} style={{
+                        background: 'none', border: 'none', color: C.error,
+                        cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                      }}>Remove</button>
                     </div>
                   ))}
                   {addingBranch && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '8px 0' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '10px 0' }}>
                       <Input label="Branch Name" value={newBranch.name} onChange={e => setNewBranch(b => ({ ...b, name: e.target.value }))} />
                       <Input label="Address (optional)" value={newBranch.address} onChange={e => setNewBranch(b => ({ ...b, address: e.target.value }))} />
                       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
@@ -1723,27 +1811,14 @@
                       </div>
                     </div>
                   )}
-                </div>
-
-                {/* Preferences */}
-                <SecHead>{t('preferences')}</SecHead>
-                <div style={{ background: C.card, borderRadius: 12, border: `1px solid ${C.border}`, padding: '8px 14px', marginBottom: 18 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0' }}>
-                    <span style={{ fontSize: 13, color: C.text, fontWeight: 600 }}>{t('theme')}</span>
-                    <button onClick={toggle} style={{
-                      background: C.primaryLight, color: C.primary, border: `1px solid ${C.primary}40`,
-                      borderRadius: 8, padding: '6px 14px', fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
-                    }}>{dark ? '☀️ Light' : '🌙 Dark'}</button>
-                  </div>
-                </div>
+                </AccordionSection>
               </>
             )}
-
           </div>
 
-          {/* Logout footer */}
-          <div style={{ borderTop: `1px solid ${C.border}`, padding: '14px 22px', flexShrink: 0, background: C.card }}>
-            <Btn variant="danger" onClick={onLogout} style={{ width: '100%' }}>🚪 {t('logout') || 'Logout'}</Btn>
+          {/* ── Logout footer ── */}
+          <div style={{ borderTop: `1px solid ${C.border}`, padding: '14px 16px', flexShrink: 0, background: C.card }}>
+            <Btn variant="danger" onClick={onLogout} style={{ width: '100%', padding: '11px', fontSize: 14, fontWeight: 700 }}>🚪 Logout</Btn>
           </div>
         </div>
       </div>
@@ -2303,17 +2378,8 @@
 
   // ── Landing nav (glass, scroll-aware) ──────────────────────────────────────
   function LandingNav({ scrolled, onAuth }) {
-    const { C, dark, toggle } = useTheme();
-    const { lang, setLang, t } = useLang();
-    const [menu, setMenu] = useState(false);
-    const mref = useRef(null);
-    useEffect(() => {
-      if (!menu) return;
-      const off = e => { if (mref.current && !mref.current.contains(e.target)) setMenu(false); };
-      document.addEventListener('mousedown', off);
-      return () => document.removeEventListener('mousedown', off);
-    }, [menu]);
-
+    const { dark, toggle } = useTheme();
+    const { t } = useLang();
     const go = id => () => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     const links = [['features', 'Features'], ['how', 'How it Works'], ['about', 'About'], ['contact', 'Contact']];
     return (
@@ -2341,33 +2407,12 @@
             ))}
           </div>
 
-          {/* Settings dropdown (lang + theme) */}
-          <div style={{ position: 'relative' }} ref={mref}>
-            <button onClick={() => setMenu(m => !m)} title="Settings" style={{
-              background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.18)', color: '#fff',
-              borderRadius: 9, padding: '6px 10px', cursor: 'pointer', fontSize: 14,
-              display: 'flex', alignItems: 'center', gap: 6,
-            }}>
-              ⚙ <span style={{ fontSize: 10, opacity: 0.8 }}>▾</span>
-            </button>
-            {menu && (
-              <div style={{
-                position: 'absolute', top: 'calc(100% + 8px)', right: 0, minWidth: 220,
-                background: C.card, color: C.text, borderRadius: 12, border: `1px solid ${C.border}`,
-                boxShadow: '0 20px 50px rgba(0,0,0,0.4)', padding: 8, zIndex: 250,
-              }}>
-                <div style={{ padding: '8px 10px', fontSize: 11, fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Preferences</div>
-                <button onClick={toggle} style={{
-                  width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  background: 'transparent', border: 'none', cursor: 'pointer',
-                  padding: '8px 10px', color: C.text, fontSize: 13, fontWeight: 600,
-                }}>
-                  <span>{dark ? '☀️ Light Mode' : '🌙 Dark Mode'}</span>
-                  <span style={{ fontSize: 11, color: C.muted }}>{dark ? 'on' : 'off'}</span>
-                </button>
-              </div>
-            )}
-          </div>
+          {/* Theme toggle — direct button */}
+          <button onClick={toggle} title={dark ? 'Switch to Light Mode' : 'Switch to Dark Mode'} aria-label="Toggle theme" style={{
+            background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.18)', color: '#fff',
+            borderRadius: 999, width: 36, height: 36, cursor: 'pointer', fontSize: 15,
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          }}>{dark ? '☀️' : '🌙'}</button>
 
           <button onClick={() => onAuth('login')} style={{
             background: '#fff', color: '#0B1020', border: 'none', borderRadius: 9,
