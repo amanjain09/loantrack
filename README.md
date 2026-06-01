@@ -358,7 +358,6 @@ defaults ship in `app.py`.
 | `FOUNDER_OTP` | `947200` | OTP backdoor for `FOUNDER_PHONE`. Set to `""` to disable. |
 | `SMS_PROVIDER` | `console` | One of `console`, `twilio`, `msg91` |
 | `PAYMENT_PROVIDER` | `manual` | One of `manual`, `razorpay`, `stripe`, `payu` |
-| `USD_INR` | `86` | Conversion used by `/api/gold-rate` (live API returns USD/oz) |
 
 ---
 
@@ -474,7 +473,7 @@ Tracked as separate user requests; expected to span several sessions.
 - [x] Profile menu (KYC + billing inside, logout at bottom)
 - [x] Language + theme moved into profile / settings menus
 - [x] 1 Cr scaling architecture doc — see [docs/SCALING.md](docs/SCALING.md)
-- [x] Live gold rate widget (Add Case + Dashboard) with 75% LTV suggestion
+- [ ] ~~Live gold rate widget~~ — removed from MVP (frontend bar + suggested-loan helper + backend `/api/gold-rate` all gone)
 - [x] Borrower profile (linked cases by phone, history hint on Add Case)
 - [x] Loan renewal / extension (deadline + optional interest capitalisation)
 - [x] Partial payments (record + ledger in case modal)
@@ -539,4 +538,6 @@ If you're a Claude session picking this up, here's what's important:
 
 | 2026-06 | nav-theme-out + profile-redesign | (a) Pulled dark-mode toggle out of profile/preferences and made it a standalone circular button visible in every navbar (tenant, admin, and landing page). Landing-page "⚙ Settings" dropdown removed entirely. (b) Re-designed `ProfilePanel` in a Zepto-style accordion layout: soft gradient hero card with avatar + Customer ID + live subscription chip, collapsible icon-led sections (👤 Profile · 🪪 KYC · 💳 Subscription · 📜 Payments · 🏢 Branches), animated chevrons, default-open Profile section, summary previews when collapsed, modern pill-shaped status chips, prominent red Logout pinned at the bottom. Preferences section removed since theme is now in the navbar. |
 
-_Last updated: 2026-06-01 — commit `profile-redesign`_
+| 2026-06 | footer-everywhere + remove-gold | (a) Added a shared `<Footer />` component shown on every authenticated page: HomePage, AddCasePage, ViewCasesPage, DashboardPage (incl. loading/error states), AdminConsole. Same copyright row format as the landing page. Each page wrapped in a flex column so the footer pins to the viewport bottom. (b) Removed the gold-price feature entirely — `GoldRateBar`, `GoldRateProvider`, `useGoldRate` hook + Add-Case "Suggested loan @ 75% LTV" helper + Dashboard gold ticker all gone from the frontend. Backend `GET /api/gold-rate`, `fetch_gold_rate()`, `_GOLD_CACHE`/`_GOLD_FALLBACK`/`_USD_INR` constants, and the `urllib.request` import all removed. |
+
+_Last updated: 2026-06-01 — commit `footer-everywhere`_
