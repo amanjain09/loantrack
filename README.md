@@ -223,6 +223,7 @@ lost.
 
 ### Public
 - `POST /api/request-access` — landing page lead capture
+- `GET  /api/gold-rate` — live 24k/22k/18k INR/g (cached 1 h, hard fallback)
 - `POST /api/auth/request-otp` — `{ phone, purpose: signup|login }`
 - `POST /api/auth/verify-otp` — `{ phone, code, name?, purpose }`
 - `POST /api/auth/login` — username + password (admins / legacy)
@@ -344,6 +345,7 @@ defaults ship in `app.py`.
 | `FOUNDER_OTP` | `947200` | OTP backdoor for `FOUNDER_PHONE`. Set to `""` to disable. |
 | `SMS_PROVIDER` | `console` | One of `console`, `twilio`, `msg91` |
 | `PAYMENT_PROVIDER` | `manual` | One of `manual`, `razorpay`, `stripe`, `payu` |
+| `USD_INR` | `86` | Conversion used by `/api/gold-rate` (live API returns USD/oz) |
 
 ---
 
@@ -429,6 +431,7 @@ commit going forward will append a row here.
 | 2026-06 | case-edit-history-delete | Case edit + per-case history table + collapsible View History accordion + delete with permanent-deletion warning. New `case_history` table, `PATCH /api/cases/<id>`, `DELETE /api/cases/<id>`, `GET /api/cases/<id>/history`. |
 | 2026-06 | profile-menu | Replaced Logout button with avatar/profile menu. Tenants get a full slide-out ProfilePanel (profile + KYC + billing + payment history + preferences + logout). Admins get a clean dropdown (preferences + logout). Landing page settings dropdown for lang + theme. Date strip + Billing card removed from HomePage. New KYC columns on users, `GET /api/users/me/profile`, `PATCH /api/users/me`, Customer ID format `PV-NNNNNN`. |
 | 2026-06 | scaling-doc | Added `docs/SCALING.md` — full architecture + cost model for scaling to 1 crore (10 M) tenants. Phased migration plan, target architecture, per-component deep dives, capacity model, ~$220 – 380 K/mo cost ballpark. Pure docs, no code changes. |
+| 2026-06 | gold-rate | Live gold-rate widget. New `GET /api/gold-rate` endpoint pulls 24k/22k/18k INR/g from a free public spot-price API (USD/oz × USD-INR ÷ 31.1035), 1-hour server cache, hard fallback on API failure. New `<GoldRateBar>` shown on Add New Case + Dashboard. Add-case shows a "Suggested loan @ 75% LTV" hint with one-click apply when metal=Gold and weight is filled. |
 
 ---
 
@@ -454,6 +457,7 @@ Tracked as separate user requests; expected to span several sessions.
 - [x] Profile menu (KYC + billing inside, logout at bottom)
 - [x] Language + theme moved into profile / settings menus
 - [x] 1 Cr scaling architecture doc — see [docs/SCALING.md](docs/SCALING.md)
+- [x] Live gold rate widget (Add Case + Dashboard) with 75% LTV suggestion
 - [ ] Full i18n coverage (every visible string × 16 languages)
 - [ ] Move language + theme controls into the profile menu
 - [ ] 1 Cr scaling architecture doc
@@ -508,4 +512,4 @@ If you're a Claude session picking this up, here's what's important:
 
 ---
 
-_Last updated: 2026-06-01 — commit `scaling-doc`_
+_Last updated: 2026-06-01 — commit `gold-rate`_

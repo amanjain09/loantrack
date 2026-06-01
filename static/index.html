@@ -614,6 +614,78 @@
     );
   }
 
+  // ── Gold rate context — fetched once, shared everywhere ───────────────────
+  const GoldRateCtx = createContext({ rate: null });
+
+  function GoldRateProvider({ children }) {
+    const [rate, setRate] = useState(null);
+    useEffect(() => {
+      let alive = true;
+      const fetchRate = async () => {
+        try { const r = await api.get('/api/gold-rate'); if (alive) setRate(r); }
+        catch {}
+      };
+      fetchRate();
+      const t = setInterval(fetchRate, 30 * 60 * 1000);   // refresh every 30 min
+      return () => { alive = false; clearInterval(t); };
+    }, []);
+    return <GoldRateCtx.Provider value={{ rate }}>{children}</GoldRateCtx.Provider>;
+  }
+  const useGoldRate = () => useContext(GoldRateCtx);
+
+  function GoldRateBar({ compact, style: s = {} }) {
+    const { C } = useTheme();
+    const { rate } = useGoldRate();
+    if (!rate) return null;
+    const live = rate.source === 'live';
+    const dot = (
+      <span style={{
+        width: 7, height: 7, borderRadius: '50%',
+        background: live ? '#4ADE80' : C.amber,
+        boxShadow: live ? '0 0 0 3px rgba(74,222,128,0.25)' : 'none',
+        display: 'inline-block', flexShrink: 0,
+      }} />
+    );
+    if (compact) {
+      return (
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 8,
+          background: C.amberLight, color: C.amber, padding: '5px 11px',
+          borderRadius: 8, fontSize: 12, fontWeight: 700,
+          border: `1px solid ${C.amberBorder}`, ...s,
+        }} title={live ? `Live · USD/oz ${rate.usd_per_oz}` : 'Last known good (live API down)'}>
+          {dot}
+          <span>🟡 22k ₹{Math.round(rate.rate_22k_per_gram_inr).toLocaleString('en-IN')}/g</span>
+          <span style={{ opacity: 0.7, fontWeight: 600 }}>·</span>
+          <span>24k ₹{Math.round(rate.rate_24k_per_gram_inr).toLocaleString('en-IN')}/g</span>
+        </div>
+      );
+    }
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap',
+        background: C.card, color: C.text, padding: '12px 18px',
+        borderRadius: 12, border: `1px solid ${C.border}`, ...s,
+      }}>
+        {dot}
+        <span style={{ fontSize: 11, fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          Live Gold Rate{live ? '' : ' (cached)'}
+        </span>
+        {[
+          ['24k', rate.rate_24k_per_gram_inr],
+          ['22k', rate.rate_22k_per_gram_inr],
+          ['18k', rate.rate_18k_per_gram_inr],
+        ].map(([k, v]) => (
+          <span key={k} style={{ display: 'inline-flex', alignItems: 'baseline', gap: 4 }}>
+            <span style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>{k}</span>
+            <span style={{ fontSize: 15, fontWeight: 800, color: C.amber }}>₹{Math.round(v).toLocaleString('en-IN')}</span>
+            <span style={{ fontSize: 11, color: C.faint }}>/g</span>
+          </span>
+        ))}
+      </div>
+    );
+  }
+
   // ── Avatar circle from user's initials ────────────────────────────────────
   function Avatar({ name, size = 36, bg, color }) {
     const initials = (name || '?').trim().split(/\s+/).map(s => s[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
@@ -2478,6 +2550,7 @@
   function AddCasePage({ onBack, isExisting, user, onProfile }) {
     const { C } = useTheme();
     const { t } = useLang();
+    const { rate: goldRate } = useGoldRate();
     const blank = () => ({
       name: '', father_name: '', address: '', mobile: '', items: '', weight: '', metal: 'Gold',
       money_lent: '', interest_rate: '',
@@ -2514,6 +2587,10 @@
       <div style={{ minHeight: '100vh', background: C.bg, transition: 'background-color 0.3s' }}>
         <Navbar title={isExisting ? 'Add Existing Case' : 'Add New Case'} onBack={onBack} user={user} onProfile={onProfile} />
         <div className="fade-in" style={{ padding: '28px 20px', maxWidth: 800, margin: '0 auto' }}>
+          {/* Live gold rate ticker — visible aid when adding a new gold loan */}
+          {!isExisting && goldRate && (
+            <div style={{ marginBottom: 16 }}><GoldRateBar /></div>
+          )}
           {isExisting && <div style={{ marginBottom: 16 }}><Alert type="info">📂 Entering an existing record — fill in the original loan date &amp; time manually.</Alert></div>}
           {success && (
             <div style={{ marginBottom: 16 }}>
@@ -2566,6 +2643,33 @@
               {/* ── Loan Details ─────────────────────────────────────────── */}
               <div>
                 <SectionTitle>{t('loanDetails')}</SectionTitle>
+                {/* Suggested loan amount (gold only, 75% LTV) */}
+                {goldRate && form.metal === 'Gold' && parseFloat(form.weight) > 0 && (() => {
+                  const w = parseFloat(form.weight);
+                  const r22 = goldRate.rate_22k_per_gram_inr || 0;
+                  const value22 = w * r22;
+                  const suggested = Math.round(value22 * 0.75 / 100) * 100;     // round to ₹100
+                  const apply = () => setForm(f => ({ ...f, money_lent: suggested.toString() }));
+                  return (
+                    <div style={{
+                      background: C.amberLight, border: `1px solid ${C.amberBorder}`,
+                      borderRadius: 10, padding: '10px 14px', marginBottom: 14,
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
+                    }}>
+                      <div style={{ fontSize: 13, color: C.text }}>
+                        💡 <strong>Suggested loan:</strong>
+                        <span style={{ color: C.amber, fontWeight: 800, marginLeft: 6 }}>₹{suggested.toLocaleString('en-IN')}</span>
+                        <span style={{ fontSize: 11.5, color: C.muted, marginLeft: 8 }}>
+                          ({w}g × ₹{Math.round(r22).toLocaleString('en-IN')}/g × 75% LTV)
+                        </span>
+                      </div>
+                      <button type="button" onClick={apply} style={{
+                        background: C.amber, color: '#fff', border: 'none',
+                        borderRadius: 7, padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                      }}>Use this</button>
+                    </div>
+                  );
+                })()}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   <div style={g2}>
                     <Input label={t('amountLent')} type="number" step="0.01" min="0" value={form.money_lent} onChange={set('money_lent')} placeholder="e.g. 50000" />
@@ -3314,6 +3418,8 @@
         <Navbar title="Dashboard & Analytics" onBack={onBack} user={user} onProfile={onProfile} />
         <div className="fade-in" style={{ padding: '28px 20px', maxWidth: 1200, margin: '0 auto' }}>
 
+          <div style={{ marginBottom: 22 }}><GoldRateBar /></div>
+
           {secHead('💰 Portfolio Overview')}
           <div style={g(180)}>
             <KpiCard label="Total Principal Lent"   value={fmtCompact(d.total_principal)}          icon="💰" color={C.primary} />
@@ -3563,6 +3669,7 @@
     return (
       <LangCtx.Provider value={{ lang, setLang, t }}>
       <ThemeCtx.Provider value={{ C, dark, toggle }}>
+      <GoldRateProvider>
         {!auth && <LandingPage onLogin={refreshMe} />}
 
         {auth && isAdmin && <AdminConsole user={user} onLogout={logout} />}
@@ -3585,6 +3692,7 @@
             )}
           </>
         )}
+      </GoldRateProvider>
       </ThemeCtx.Provider>
       </LangCtx.Provider>
     );

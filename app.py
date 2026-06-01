@@ -17,6 +17,7 @@ import os
 import json
 import secrets
 import sqlite3
+import urllib.request
 from datetime import datetime, timedelta, date as date_type
 from functools import wraps
 
@@ -235,6 +236,56 @@ def audit(action, target_type=None, target_id=None, meta=None, actor_id=None):
     except Exception as e:
         # Never let audit break the request
         print(f"[audit] failed: {e}", flush=True)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Live gold-rate provider — cached, with hard fallback
+# ──────────────────────────────────────────────────────────────────────────────
+_GOLD_CACHE      = {"ts": None, "data": None}
+_GOLD_CACHE_TTL  = timedelta(hours=1)
+# Sane June-2026 fallbacks (per gram, INR). Used if the live API is down.
+_GOLD_FALLBACK = {
+    "rate_24k_per_gram_inr": 8500,
+    "rate_22k_per_gram_inr": 7786,
+    "rate_18k_per_gram_inr": 6375,
+}
+# Approx USD-INR rate used to convert spot price; overridable via env var.
+_USD_INR = float(os.environ.get("USD_INR", "86"))
+
+
+def fetch_gold_rate():
+    """Returns current 24k/22k/18k gold rate per gram in INR. Cached 1h."""
+    now = datetime.utcnow()
+    if _GOLD_CACHE["ts"] and (now - _GOLD_CACHE["ts"]) < _GOLD_CACHE_TTL:
+        return _GOLD_CACHE["data"]
+
+    result = {**_GOLD_FALLBACK, "source": "fallback", "fetched_at": now.isoformat()}
+    try:
+        # Free public endpoint, no API key required. USD per troy ounce.
+        req = urllib.request.Request(
+            "https://api.gold-api.com/price/XAU",
+            headers={"User-Agent": "LoanTrack/1.0"},
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        usd_per_oz = float(data.get("price") or 0)
+        if usd_per_oz > 0:
+            inr_per_gram_24k = usd_per_oz / 31.1035 * _USD_INR
+            result = {
+                "rate_24k_per_gram_inr": round(inr_per_gram_24k, 2),
+                "rate_22k_per_gram_inr": round(inr_per_gram_24k * 0.916, 2),
+                "rate_18k_per_gram_inr": round(inr_per_gram_24k * 0.750, 2),
+                "source":      "live",
+                "fetched_at":  now.isoformat(),
+                "usd_per_oz":  round(usd_per_oz, 2),
+                "usd_inr":     _USD_INR,
+            }
+    except Exception as e:
+        result["error"] = str(e)[:200]
+
+    _GOLD_CACHE["ts"]   = now
+    _GOLD_CACHE["data"] = result
+    return result
 
 
 def record_case_history(case_id, action, changes=None, actor_id=None):
@@ -1480,6 +1531,12 @@ def list_plans():
     rows = [dict(r) for r in cur.fetchall()]
     conn.close()
     return jsonify(rows)
+
+
+@app.route("/api/gold-rate", methods=["GET"])
+def gold_rate():
+    """Current 24k/22k/18k gold rate per gram in INR. Cached server-side."""
+    return jsonify(fetch_gold_rate())
 
 
 @app.route("/api/billing/me", methods=["GET"])
