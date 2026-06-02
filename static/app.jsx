@@ -99,7 +99,6 @@
     heroT1:'Lend with trust.', heroT2:'Recover with', heroT3:'precision',
   };
   const useLang = () => ({ t: key => TR[key] || key });
-  function LangSelector() { return null; }
 
   // ── Global helpers ─────────────────────────────────────────────────────────
   const todayStr  = () => new Date().toISOString().split('T')[0];
@@ -446,7 +445,7 @@
 
   function Navbar({ title, onBack, onLogout, user, onProfile }) {
     const { C, dark, toggle } = useTheme();
-    const { lang, setLang, t } = useLang();
+    const { t } = useLang();
     const [menu, setMenu] = useState(false);                  // small admin-style menu
     const menuRef = useRef(null);
 
