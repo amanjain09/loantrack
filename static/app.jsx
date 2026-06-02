@@ -799,9 +799,8 @@
 
     return (
       <div onClick={e => e.target === e.currentTarget && onClose()} style={{
-        position: 'fixed', inset: 0, background: 'rgba(5,8,20,0.72)', zIndex: 1000,
+        position: 'fixed', inset: 0, background: 'rgba(5,8,20,0.78)', zIndex: 1000,
         display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
-        backdropFilter: 'blur(6px)',
       }}>
         <div className="fade-in" style={{
           background: C.card, borderRadius: 22, width: '100%', maxWidth: 460,
@@ -1236,8 +1235,8 @@
 
     return (
       <div onClick={e => e.target === e.currentTarget && onClose()} style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 600,
-        backdropFilter: 'blur(3px)',
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 600,
+        /* no backdrop-filter — full-page blur is GPU-expensive and janks the open */
       }}>
         <div className="fade-in" style={{
           position: 'absolute', top: 0, right: 0, width: 'min(380px, 100vw)', height: '100vh',
@@ -1500,7 +1499,6 @@
       <div onClick={e => e.target === e.currentTarget && onClose()} style={{
         position: 'fixed', inset: 0, background: C.modalOverlay, zIndex: 500,
         display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
-        backdropFilter: 'blur(4px)',
       }}>
         <div className="fade-in" style={{
           background: C.card, borderRadius: 18, width: '100%', maxWidth,
@@ -2756,7 +2754,6 @@
       <div onClick={e => e.target === e.currentTarget && onClose()} style={{
         position: 'fixed', inset: 0, background: C.modalOverlay, zIndex: 300,
         display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
-        backdropFilter: 'blur(2px)',
       }}>
         <div className="fade-in" style={{
           background: C.card, borderRadius: 20, width: '100%', maxWidth: 600,
