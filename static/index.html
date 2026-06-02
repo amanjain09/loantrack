@@ -76,7 +76,7 @@
     }
 
     /* Table */
-    .tbl-wrap { overflow-x: auto; }
+    .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
     thead th {
       background: var(--tbl-th-bg); padding: 11px 14px;
@@ -163,6 +163,17 @@
     @media (max-width: 860px) {
       .land-nav-links { display: none !important; }
       .hero-grid { grid-template-columns: 1fr !important; }
+    }
+    /* ── Mobile: collapse multi-column form rows to a single column ───────── */
+    @media (max-width: 560px) {
+      .form-grid { grid-template-columns: 1fr !important; }
+      /* tighten page padding on small screens */
+      .page-pad { padding-left: 14px !important; padding-right: 14px !important; }
+      /* let long navbar titles shrink instead of overflowing */
+      .nav-title { font-size: 15px !important; }
+    }
+    @media (max-width: 380px) {
+      .nav-title { display: none !important; }   /* logo alone on very small screens */
     }
   </style>
 </head>

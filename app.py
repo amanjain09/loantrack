@@ -36,6 +36,10 @@ if USE_PG:
 app = Flask(__name__, static_folder="static")
 app.secret_key = os.environ.get("SECRET_KEY", "lending-app-dev-key-change-in-prod")
 app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024     # 64 MB for base64 uploads
+# Force the browser to revalidate static assets (index.html, app.js, …) on every
+# load instead of caching them for 12 h. Unchanged files return a cheap 304;
+# changed files (e.g. a new app.js after deploy) are picked up immediately.
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "lending.db")
 
@@ -2507,7 +2511,9 @@ init_db()
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")
 def serve(path):
-    return send_from_directory("static", "index.html")
+    resp = send_from_directory("static", "index.html")
+    resp.headers["Cache-Control"] = "no-cache, must-revalidate"
+    return resp
 
 
 if __name__ == "__main__":

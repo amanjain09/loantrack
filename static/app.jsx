@@ -475,7 +475,7 @@
             }}>←</button>
           )}
           <Logo size={36} />
-          <span style={{ fontWeight: 800, fontSize: 16.5, letterSpacing: '-0.01em' }}>{title}</span>
+          <span className="nav-title" style={{ fontWeight: 800, fontSize: 16.5, letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>{title}</span>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1368,7 +1368,7 @@
                   )}
                   {billErr && <div style={{ marginBottom: 8 }}><Alert type="error">{billErr}</Alert></div>}
                   {billOK  && <div style={{ marginBottom: 8 }}><Alert type="success">{billOK}</Alert></div>}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <div className="form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                     {plans.map(pl => {
                       const isCurrent = sub?.plan_code === pl.code && sub?.active;
                       return (
@@ -1597,7 +1597,7 @@
         <form onSubmit={save} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <Input label="Code (unique key)" required value={form.code} onChange={sf('code')} disabled={!isNew} placeholder="e.g. quarterly" />
           <Input label="Display Name" required value={form.name} onChange={sf('name')} placeholder="Quarterly Plan" />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <Input label="Price (₹)" required type="number" step="0.01" value={form.price_inr} onChange={sf('price_inr')} />
             <Input label="Duration (days)" required type="number" value={form.duration_days} onChange={sf('duration_days')} />
           </div>
@@ -2103,7 +2103,7 @@
           <span style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>Portfolio Overview</span>
           <span style={{ fontSize: 10.5, color: '#4ADE80', fontWeight: 700, padding: '3px 9px', borderRadius: 20, background: 'rgba(74,222,128,0.15)' }}>● Live</span>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 18 }}>
+        <div className="form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 18 }}>
           {[['Principal', '₹48.2L', '#818CF8'], ['Recovered', '₹39.6L', '#4ADE80'], ['Open Cases', '127', '#38BDF8'], ['Recovery', '98%', '#FBBF24']].map(([l, v, c]) => (
             <div key={l} style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 11, padding: '11px 13px', border: '1px solid rgba(255,255,255,0.07)' }}>
               <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.55)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{l}</div>
@@ -2302,7 +2302,7 @@
               </div>
             </Reveal>
             <Reveal delay={120}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div className="form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                 {trust.map(([icon, title, desc]) => (
                   <div key={title} style={{ background: C.card, borderRadius: 16, padding: '22px 20px', border: `1px solid ${C.border}`, boxShadow: `0 2px 12px rgba(0,0,0,${dark ? '0.3' : '0.05'})` }}>
                     <div style={{ fontSize: 26, marginBottom: 12 }}>{icon}</div>
@@ -2470,11 +2470,11 @@
               <div>
                 <SectionTitle>{t('borrowerDetails')}</SectionTitle>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  <div style={g2}>
+                  <div className="form-grid" style={g2}>
                     <Input label={t('borrowerName')} required value={form.name} onChange={set('name')} placeholder="Full name" autoFocus />
                     <Input label={t('fatherName')} value={form.father_name} onChange={set('father_name')} placeholder="Father's full name" />
                   </div>
-                  <div style={g2}>
+                  <div className="form-grid" style={g2}>
                     <Input label={t('mobileNumber')} type="tel" value={form.mobile}
                       onChange={e => {
                         const v = e.target.value;
@@ -2501,7 +2501,7 @@
                 <SectionTitle>{t('pledgedItem')}</SectionTitle>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   <Input label={t('items')} value={form.items} onChange={set('items')} placeholder="e.g. Gold necklace, 2 bangles, silver anklets" />
-                  <div style={g3}>
+                  <div className="form-grid" style={g3}>
                     <Input label={t('weight')} type="number" step="0.01" min="0" value={form.weight} onChange={set('weight')} placeholder="e.g. 10.5" />
                     <div style={{ gridColumn: 'span 2' }}>
                       <Select label={t('metalType')} value={form.metal} onChange={set('metal')}>
@@ -2528,15 +2528,15 @@
               <div>
                 <SectionTitle>{t('loanDetails')}</SectionTitle>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  <div style={g2}>
+                  <div className="form-grid" style={g2}>
                     <Input label={t('amountLent')} type="number" step="0.01" min="0" value={form.money_lent} onChange={set('money_lent')} placeholder="e.g. 50000" />
                     <Input label={t('interestRate')} type="number" step="0.01" min="0" value={form.interest_rate} onChange={set('interest_rate')} placeholder="e.g. 2" />
                   </div>
-                  <div style={g2}>
+                  <div className="form-grid" style={g2}>
                     <Input label={isExisting ? 'Original Loan Date' : 'Date'} type="date" value={form.loan_date} onChange={set('loan_date')} required={isExisting} />
                     <Input label={isExisting ? 'Original Loan Time' : 'Time'} type="time" value={form.loan_time} onChange={set('loan_time')} />
                   </div>
-                  <div style={g2}>
+                  <div className="form-grid" style={g2}>
                     <Input label={t('probableClose')} type="month" value={form.probable_close_date} onChange={set('probable_close_date')} />
                     <div>
                       <Input
@@ -2971,11 +2971,11 @@
               }}>
                 <SecHd>Edit Case</SecHd>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div className="form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <Input label="Name" required value={editForm.name} onChange={ef('name')} />
                     <Input label="Father's Name" value={editForm.father_name} onChange={ef('father_name')} />
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div className="form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <Input label="Mobile" type="tel" value={editForm.mobile} onChange={ef('mobile')} />
                     <Input label="Items" value={editForm.items} onChange={ef('items')} />
                   </div>
@@ -2987,7 +2987,7 @@
                     </Select>
                     <Input label="Interest Rate (%/mo)" type="number" step="0.01" value={editForm.interest_rate} onChange={ef('interest_rate')} />
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div className="form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <Input label="Amount Lent (₹)" type="number" step="0.01" value={editForm.money_lent} onChange={ef('money_lent')} />
                     <Input label="Loan Date" type="date" value={editForm.loan_date} onChange={ef('loan_date')} />
                   </div>
@@ -3053,7 +3053,7 @@
             {partialOpen && isOpen && (
               <div style={{ background: C.successLight, borderRadius: 12, padding: 16, border: `1px solid ${C.successBorder}`, display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div style={{ fontWeight: 700, color: C.success }}>Record Partial Payment</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div className="form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <Input label="Amount (₹)" type="number" step="0.01" value={partialForm.amount} onChange={e => setPartialForm(f => ({ ...f, amount: e.target.value }))} />
                   <Select label="Method" value={partialForm.method} onChange={e => setPartialForm(f => ({ ...f, method: e.target.value }))}>
                     <option value="UPI">UPI</option>
