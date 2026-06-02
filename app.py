@@ -2508,10 +2508,29 @@ def admin_stats(_user):
 init_db()
 
 
+def _asset_version():
+    """Content hash of app.js so its URL changes only when the file changes —
+    forces every browser to fetch the new bundle after a deploy, even if it
+    previously cached the old one with a long max-age. Bulletproof cache-bust."""
+    try:
+        import hashlib
+        with open(os.path.join(os.path.dirname(__file__), "static", "app.js"), "rb") as f:
+            return hashlib.md5(f.read()).hexdigest()[:10]
+    except Exception:
+        return str(int(datetime.utcnow().timestamp()))
+
+
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")
 def serve(path):
-    resp = send_from_directory("static", "index.html")
+    # Serve index.html with a versioned app.js URL so a freshly deployed bundle
+    # is always picked up (no stale-cache lock-in).
+    idx_path = os.path.join(os.path.dirname(__file__), "static", "index.html")
+    with open(idx_path, encoding="utf-8") as f:
+        html = f.read()
+    html = html.replace("/static/app.js", f"/static/app.js?v={_asset_version()}")
+    resp = app.make_response(html)
+    resp.headers["Content-Type"] = "text/html; charset=utf-8"
     resp.headers["Cache-Control"] = "no-cache, must-revalidate"
     return resp
 

@@ -568,4 +568,6 @@ If you're a Claude session picking this up, here's what's important:
 
 | 2026-06 | profile-instant-body | The blur fix made the panel SHELL open instantly, but the BODY still showed 'Loading…' until all 3 API calls finished (Promise.all gated the whole list). Since every section is collapsed by default, that wait was pointless. Now: removed the `!data` gate so the five section rows render immediately; the header name/phone + subscription chip come from data the app already has (`user` prop + `initialSub` passed from App), so they show instantly; the remaining details (KYC fields, business, address, customer-id, branches, plans, payment history) fill in when the ~0.6 s fetch resolves. Net: the profile panel is now fully usable the instant it opens. |
 
-_Last updated: 2026-06-01 — commit `profile-instant-body`_
+| 2026-06 | asset-versioning | Bulletproof cache-busting. `serve()` now injects a content-hash query string into the app.js URL (`/static/app.js?v=<md5[:10]>`) and serves index.html dynamically with no-cache. When app.js changes its URL changes, so every browser is forced to fetch the new bundle after a deploy — no more stale-JS lock-in (a user was stuck on a 12 h-cached old app.js showing the pre-fix profile 'Loading…' wall even though the fix was live; verified via headless Chrome against prod that the deployed code renders 5 section rows instantly with no loading wall). |
+
+_Last updated: 2026-06-01 — commit `asset-versioning`_
