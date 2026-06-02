@@ -1119,7 +1119,7 @@
     );
   }
 
-  function ProfilePanel({ user, onClose, onLogout, refreshMe }) {
+  function ProfilePanel({ user, initialSub, onClose, onLogout, refreshMe }) {
     const { C, dark } = useTheme();
     const { t } = useLang();
     const [data, setData]       = useState(null);
@@ -1197,9 +1197,12 @@
       finally { setBP(''); }
     };
 
-    const p = data?.profile;
-    const sub = data?.subscription;
+    // Fall back to data the app already has (user prop, initialSub) so the
+    // panel renders instantly instead of blocking on the fetch.
+    const p = data?.profile || (user ? { name: user.name, phone: user.phone } : null);
+    const sub = data?.subscription || initialSub;
     const payments = data?.payments || [];
+    const loaded = !!data;
     const maskAadhaar = (a) => a ? `xxxx-xxxx-${String(a).replace(/\D/g,'').slice(-4)}` : null;
     const maskPan     = (v) => v ? `${String(v).slice(0,2)}xxxxx${String(v).slice(-1)}` : null;
 
@@ -1279,11 +1282,9 @@
             </div>
           )}
 
-          {/* ── Scrollable list ── */}
+          {/* ── Scrollable list (renders immediately; details fill in) ── */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px 16px' }}>
-            {!data ? (
-              <div style={{ color: C.faint, textAlign: 'center', padding: 20, fontSize: 13 }}>Loading…</div>
-            ) : (
+            {(
               <div style={{
                 background: C.card, borderRadius: 12, border: `1px solid ${C.border}`,
                 overflow: 'hidden',
@@ -3639,6 +3640,7 @@
             {profileOpen && (
               <ProfilePanel
                 user={user}
+                initialSub={sub}
                 onClose={() => setProfileOpen(false)}
                 onLogout={async () => { setProfileOpen(false); await logout(); }}
                 refreshMe={refreshMe}
