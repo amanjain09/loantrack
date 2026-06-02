@@ -3243,7 +3243,7 @@
             onClosed={() => loadCases(filters)}
           />
         )}
-        <div className="fade-in" style={{ padding: '28px 20px', maxWidth: 1200, margin: '0 auto' }}>
+        <div className="fade-in" style={{ padding: '28px 20px', maxWidth: 1200, margin: '0 auto', width: '100%', flex: 1 }}>
 
           {/* Filters */}
           <div style={filterCard}>
